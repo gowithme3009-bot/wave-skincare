@@ -150,9 +150,28 @@ async function loadOrders({silent=false}={}){
  loadingOrders=true;
  if(!silent)ordersMessage.textContent="Chargement des commandes…";
  try{
-  const {data,error}=await supabase.from("orders").select("id,order_number,status,payment_method,payment_status,total,delivery_address,created_at,order_items(product_name,quantity,unit_price)").order("created_at",{ascending:false}).limit(50);
+  // Charger les commandes et leurs lignes séparément pour éviter qu'une
+  // relation imbriquée PostgREST bloque toute la liste.
+  const {data,error}=await supabase.from("orders")
+   .select("id,order_number,status,payment_method,payment_status,total,delivery_address,created_at")
+   .order("created_at",{ascending:false}).limit(50);
   if(error)throw error;
   const fresh=data||[];
+  const orderIds=fresh.map(order=>order.id);
+  if(orderIds.length){
+   const {data:lines,error:linesError}=await supabase.from("order_items")
+    .select("order_id,product_name,quantity,unit_price")
+    .in("order_id",orderIds);
+   if(linesError)throw linesError;
+   const grouped=new Map();
+   for(const line of(lines||[])){
+    if(!grouped.has(line.order_id))grouped.set(line.order_id,[]);
+    grouped.get(line.order_id).push(line);
+   }
+   for(const order of fresh)order.order_items=grouped.get(order.id)||[];
+  }else{
+   for(const order of fresh)order.order_items=[];
+  }
   const freshIds=new Set(fresh.map(o=>o.id));
   const newOrders=knownOrderIds===null?[]:fresh.filter(o=>!knownOrderIds.has(o.id));
   knownOrderIds=freshIds;
@@ -194,4 +213,4 @@ async function verify(){
 }
 logout.addEventListener("click",async()=>{if(pollingTimer)clearInterval(pollingTimer);await supabase.auth.signOut();location.href="compte.html";});
 refreshOrders?.addEventListener("click",()=>loadOrders());
-supabase.auth.onAuthStateChange(()=>verify());verify();
+supabase.auth.onAuthStateChange(()=>{setTimeout(()=>verify(),0);});verify();
