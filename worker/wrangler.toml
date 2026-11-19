@@ -1,0 +1,7 @@
+name = "wave"
+main = "src/index.js"
+compatibility_date = "2026-11-19"
+
+[vars]
+SUPABASE_URL = "https://jcwvoeidboclfqtwtjnv.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-C0IsvXLnRpY6NS1oG8R1A_MezX1j0Z"
