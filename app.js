@@ -1,4 +1,5 @@
-(async () => {\n await (window.WAVE_PRODUCTS_READY || Promise.resolve());
+(async () => {
+ await (window.WAVE_PRODUCTS_READY || Promise.resolve());
  const $ = s => document.querySelector(s);
  const money = n => new Intl.NumberFormat("fr-FR").format(n) + " Ar";
  let cart = JSON.parse(localStorage.getItem("waveCart") || "[]");
