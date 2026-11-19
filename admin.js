@@ -1,161 +1,114 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 const supabase = createClient(window.WAVE_SUPABASE_URL, window.WAVE_SUPABASE_PUBLISHABLE_KEY);
-const status = document.getElementById("adminStatus");
-const logout = document.getElementById("adminLogout");
-const ordersMessage = document.getElementById("ordersMessage");
-const ordersList = document.getElementById("ordersList");
-const productsMessage = document.getElementById("productsMessage");
-const productsList = document.getElementById("productsList");
-const refreshOrders = document.getElementById("refreshOrders");
+const $ = id => document.getElementById(id);
+const status = $("adminStatus"), logout = $("adminLogout");
+const ordersMessage = $("ordersMessage"), ordersList = $("ordersList");
+const productsMessage = $("productsMessage"), productsList = $("productsList");
+const refreshOrders = $("refreshOrders"), productForm = $("productForm");
 const money = value => new Intl.NumberFormat("fr-FR").format(Number(value || 0)) + " Ar";
-const labels = {
-  pending: "À confirmer",
-  confirmed: "Confirmée",
-  preparing: "En préparation",
-  shipped: "En livraison",
-  delivered: "Livrée",
-  cancelled: "Annulée"
-};
+const labels = {pending:"À confirmer",confirmed:"Confirmée",preparing:"En préparation",shipped:"En livraison",delivered:"Livrée",cancelled:"Annulée"};
 const allowedStatuses = Object.keys(labels);
+function el(tag,text,className){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;}
 
-function element(tag, text, className) {
-  const node = document.createElement(tag);
-  if (text !== undefined) node.textContent = text;
-  if (className) node.className = className;
-  return node;
+function resetProductForm(){
+ productForm.reset(); $("productId").value=""; $("productStock").value="0"; $("productActive").checked=true;
+ $("saveProduct").textContent="Ajouter le produit"; $("cancelProductEdit").hidden=true;
 }
-
-async function loadProducts() {
-  productsMessage.textContent = "Chargement du stock…";
-  productsList.replaceChildren();
-  const { data, error } = await supabase
-    .from("products")
-    .select("id,name,price,stock,active")
-    .order("name", { ascending: true });
-
-  if (error) {
-    productsMessage.textContent = "Impossible de charger le stock : " + error.message;
-    return;
-  }
-  productsMessage.textContent = data.length + " produit(s) dans le catalogue.";
-  for (const product of data) {
-    const row = element("div", undefined, "stock-row");
-    const info = element("div");
-    info.append(element("strong", product.name));
-    info.append(element("div", money(product.price) + " · " + (product.active ? "En vente" : "Masqué"), "stock-meta"));
-
-    const quantity = document.createElement("input");
-    quantity.type = "number";
-    quantity.min = "0";
-    quantity.step = "1";
-    quantity.value = String(product.stock ?? 0);
-    quantity.setAttribute("aria-label", "Stock de " + product.name);
-
-    const save = element("button", "Enregistrer", "btn btn-gold");
-    save.type = "button";
-    save.addEventListener("click", async () => {
-      const nextStock = Number(quantity.value);
-      if (!Number.isInteger(nextStock) || nextStock < 0) {
-        productsMessage.textContent = "Saisissez un stock entier supérieur ou égal à zéro.";
-        return;
-      }
-      save.disabled = true;
-      const { error: updateError } = await supabase
-        .from("products")
-        .update({ stock: nextStock })
-        .eq("id", product.id);
-      if (updateError) {
-        productsMessage.textContent = "Mise à jour impossible : " + updateError.message;
-      } else {
-        product.stock = nextStock;
-        productsMessage.textContent = "Stock enregistré pour " + product.name + ".";
-      }
-      save.disabled = false;
-    });
-    row.append(info, quantity, save);
-    productsList.append(row);
-  }
-}
-
-async function loadOrders() {
-  ordersMessage.textContent = "Chargement des commandes…";
-  ordersList.replaceChildren();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id,order_number,status,payment_method,payment_status,total,delivery_address,created_at,order_items(product_name,quantity,unit_price)")
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if (error) {
-    ordersMessage.textContent = "Impossible de charger les commandes : " + error.message;
-    return;
-  }
-  if (!data?.length) {
-    ordersMessage.textContent = "Aucune commande pour le moment.";
-    return;
-  }
-  ordersMessage.textContent = data.length + " commande(s) récente(s).";
-
-  for (const order of data) {
-    const card = element("article", undefined, "order-card");
-    card.append(element("h3", order.order_number));
-    card.append(element("p", "Reçue le " + new Date(order.created_at).toLocaleString("fr-FR")));
-    const customer = order.delivery_address || {};
-    card.append(element("p", "Client : " + (customer.name || "—")));
-    card.append(element("p", "Téléphone : " + (customer.phone || "—")));
-    card.append(element("p", "Adresse : " + [customer.address, customer.city].filter(Boolean).join(", ")));
-    const items = element("ul", undefined, "order-items");
-    for (const item of (order.order_items || [])) {
-      items.append(element("li", item.quantity + " × " + item.product_name + " — " + money(item.unit_price) + " / unité"));
-    }
-    card.append(items);
-    card.append(element("p", "Total à encaisser : " + money(order.total)));
-    card.append(element("p", "Paiement : à la livraison — " + (order.payment_status === "paid" ? "payé" : "non payé")));
-    const select = document.createElement("select");
-    select.setAttribute("aria-label", "Statut de la commande " + order.order_number);
-    for (const key of allowedStatuses) {
-      const option = document.createElement("option");
-      option.value = key;
-      option.textContent = labels[key];
-      option.selected = key === order.status;
-      select.append(option);
-    }
-    select.addEventListener("change", async () => {
-      select.disabled = true;
-      const previous = order.status;
-      const { error: updateError } = await supabase.from("orders").update({ status: select.value }).eq("id", order.id);
-      if (updateError) {
-        ordersMessage.textContent = "Mise à jour impossible : " + updateError.message;
-        select.value = previous;
-      } else {
-        order.status = select.value;
-        ordersMessage.textContent = "Statut mis à jour pour " + order.order_number + ".";
-      }
-      select.disabled = false;
-    });
-    card.append(element("p", "Statut de la commande :"), select);
-    ordersList.append(card);
-  }
-}
-
-async function verify() {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error) { status.textContent = "Erreur : " + error.message; return; }
-  if (!session) { status.textContent = "Accès refusé : connectez-vous avec le compte administrateur."; return; }
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (profileError) { status.textContent = "Impossible de vérifier le rôle : " + profileError.message; return; }
-  if (profile?.role !== "admin") { status.textContent = "Accès refusé. Ce compte n’a pas le rôle admin."; return; }
-  status.textContent = "Accès autorisé. Compte administrateur vérifié.";
-  logout.hidden = false;
-  await Promise.all([loadProducts(), loadOrders()]);
-}
-
-logout.addEventListener("click", async () => {
-  await supabase.auth.signOut();
-  location.href = "compte.html";
+$("cancelProductEdit")?.addEventListener("click",resetProductForm);
+productForm?.addEventListener("submit",async event=>{
+ event.preventDefault();
+ const id=$("productId").value;
+ const payload={
+  name:$("productName").value.trim(),
+  description:$("productDescription").value.trim() || null,
+  price:Number($("productPrice").value),
+  stock:Number($("productStock").value),
+  image_url:$("productImage").value.trim() || null,
+  active:$("productActive").checked
+ };
+ if(!payload.name || !Number.isFinite(payload.price) || payload.price<0 || !Number.isInteger(payload.stock) || payload.stock<0){
+  productsMessage.textContent="Vérifiez le nom, le prix et le stock (nombre entier positif ou nul).";return;
+ }
+ const button=$("saveProduct");button.disabled=true;productsMessage.textContent="Enregistrement du produit…";
+ try{
+  const result=id
+   ? await supabase.from("products").update(payload).eq("id",id)
+   : await supabase.from("products").insert(payload);
+  if(result.error)throw result.error;
+  productsMessage.textContent=id?"Produit modifié avec succès.":"Nouveau produit ajouté au catalogue.";
+  resetProductForm();await loadProducts();
+ }catch(error){productsMessage.textContent="Enregistrement impossible : "+error.message;}
+ finally{button.disabled=false;}
 });
-refreshOrders?.addEventListener("click", () => { loadOrders(); });
-supabase.auth.onAuthStateChange(() => { verify(); });
-verify();
+
+async function loadProducts(){
+ productsMessage.textContent="Chargement du catalogue…";productsList.replaceChildren();
+ const {data,error}=await supabase.from("products").select("id,name,description,price,image_url,stock,active").order("name");
+ if(error){productsMessage.textContent="Impossible de charger les produits : "+error.message;return;}
+ productsMessage.textContent=data.length+" produit(s) enregistré(s).";
+ for(const product of data){
+  const row=el("div",undefined,"product-row");
+  const image=el("img");image.src=product.image_url||"assets/wave-boutique.webp";image.alt="";
+  const info=el("div",undefined,"product-row-info");
+  info.append(el("strong",product.name));
+  info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")));
+  const actions=el("div",undefined,"product-row-actions");
+  const edit=el("button","Modifier","btn btn-dark");edit.type="button";
+  edit.addEventListener("click",()=>{
+   $("productId").value=product.id;$("productName").value=product.name;
+   $("productDescription").value=product.description||"";$("productPrice").value=product.price;
+   $("productStock").value=product.stock;$("productImage").value=product.image_url||"";
+   $("productActive").checked=product.active;$("saveProduct").textContent="Enregistrer les modifications";
+   $("cancelProductEdit").hidden=false;productForm.scrollIntoView({behavior:"smooth",block:"start"});
+  });
+  const toggle=el("button",product.active?"Masquer":"Réactiver","btn btn-gold");toggle.type="button";
+  toggle.addEventListener("click",async()=>{
+   toggle.disabled=true;const {error:updateError}=await supabase.from("products").update({active:!product.active}).eq("id",product.id);
+   if(updateError){productsMessage.textContent="Modification impossible : "+updateError.message;toggle.disabled=false;return;}
+   productsMessage.textContent=product.name+(product.active?" masqué.":" réactivé.");await loadProducts();
+  });
+  actions.append(edit,toggle);row.append(image,info,actions);productsList.append(row);
+ }
+}
+
+async function loadOrders(){
+ ordersMessage.textContent="Chargement des commandes…";ordersList.replaceChildren();
+ const {data,error}=await supabase.from("orders").select("id,order_number,status,payment_method,payment_status,total,delivery_address,created_at,order_items(product_name,quantity,unit_price)").order("created_at",{ascending:false}).limit(50);
+ if(error){ordersMessage.textContent="Impossible de charger les commandes : "+error.message;return;}
+ if(!data?.length){ordersMessage.textContent="Aucune commande pour le moment.";return;}
+ ordersMessage.textContent=data.length+" commande(s) récente(s).";
+ for(const order of data){
+  const card=el("article",undefined,"order-card");card.append(el("h3",order.order_number));
+  card.append(el("p","Reçue le "+new Date(order.created_at).toLocaleString("fr-FR")));
+  const customer=order.delivery_address||{};
+  card.append(el("p","Client : "+(customer.name||"—")));card.append(el("p","Téléphone : "+(customer.phone||"—")));
+  card.append(el("p","Adresse : "+[customer.address,customer.city].filter(Boolean).join(", ")));
+  const items=el("ul",undefined,"order-items");
+  for(const item of(order.order_items||[]))items.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
+  card.append(items);card.append(el("p","Total à encaisser : "+money(order.total)));
+  card.append(el("p","Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
+  const select=document.createElement("select");select.setAttribute("aria-label","Statut de la commande "+order.order_number);
+  for(const key of allowedStatuses){const option=el("option",labels[key]);option.value=key;option.selected=key===order.status;select.append(option);}
+  select.addEventListener("change",async()=>{
+   select.disabled=true;const previous=order.status;
+   const {error:updateError}=await supabase.from("orders").update({status:select.value}).eq("id",order.id);
+   if(updateError){ordersMessage.textContent="Mise à jour impossible : "+updateError.message;select.value=previous;}
+   else{order.status=select.value;ordersMessage.textContent="Statut mis à jour pour "+order.order_number+".";}
+   select.disabled=false;
+  });
+  card.append(el("p","Statut de la commande :"),select);ordersList.append(card);
+ }
+}
+async function verify(){
+ const {data:{session},error}=await supabase.auth.getSession();
+ if(error){status.textContent="Erreur : "+error.message;return;}
+ if(!session){status.textContent="Accès refusé : connectez-vous avec le compte administrateur.";return;}
+ const {data:profile,error:profileError}=await supabase.from("profiles").select("role").eq("id",session.user.id).maybeSingle();
+ if(profileError){status.textContent="Impossible de vérifier le rôle : "+profileError.message;return;}
+ if(profile?.role!=="admin"){status.textContent="Accès refusé. Ce compte n’a pas le rôle admin.";return;}
+ status.textContent="Accès autorisé. Compte administrateur vérifié.";logout.hidden=false;
+ await Promise.all([loadProducts(),loadOrders()]);
+}
+logout.addEventListener("click",async()=>{await supabase.auth.signOut();location.href="compte.html";});
+refreshOrders?.addEventListener("click",loadOrders);
+supabase.auth.onAuthStateChange(()=>verify());verify();
