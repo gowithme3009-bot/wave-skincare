@@ -13,6 +13,7 @@ let knownOrderIds = null;
 let adminReady = false;
 let pollingTimer = null;
 let loadingOrders = false;
+let loadingProducts = false;
 function el(tag,text,className){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;}
 function setStat(id,value){const node=$(id);if(node)node.textContent=value;}
 
@@ -48,32 +49,41 @@ productForm?.addEventListener("submit",async event=>{
 });
 
 async function loadProducts(){
- productsMessage.textContent="Chargement du catalogue…";productsList.replaceChildren();
- const {data,error}=await supabase.from("products").select("id,name,description,price,image_url,stock,active").order("name");
- if(error){productsMessage.textContent="Impossible de charger les produits : "+error.message;return;}
- productsMessage.textContent=data.length+" produit(s) enregistré(s).";
- for(const product of data){
-  const row=el("div",undefined,"product-row");
-  const image=el("img");image.src=product.image_url||"assets/wave-boutique.webp";image.alt="";
-  const info=el("div",undefined,"product-row-info");
-  info.append(el("strong",product.name));
-  info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")));
-  const actions=el("div",undefined,"product-row-actions");
-  const edit=el("button","Modifier","btn btn-dark");edit.type="button";
-  edit.addEventListener("click",()=>{
-   $("productId").value=product.id;$("productName").value=product.name;
-   $("productDescription").value=product.description||"";$("productPrice").value=product.price;
-   $("productStock").value=product.stock;$("productImage").value=product.image_url||"";
-   $("productActive").checked=product.active;$("saveProduct").textContent="Enregistrer les modifications";
-   $("cancelProductEdit").hidden=false;productForm.scrollIntoView({behavior:"smooth",block:"start"});
-  });
-  const toggle=el("button",product.active?"Masquer":"Réactiver","btn btn-gold");toggle.type="button";
-  toggle.addEventListener("click",async()=>{
-   toggle.disabled=true;const {error:updateError}=await supabase.from("products").update({active:!product.active}).eq("id",product.id);
-   if(updateError){productsMessage.textContent="Modification impossible : "+updateError.message;toggle.disabled=false;return;}
-   productsMessage.textContent=product.name+(product.active?" masqué.":" réactivé.");await loadProducts();
-  });
-  actions.append(edit,toggle);row.append(image,info,actions);productsList.append(row);
+ if(loadingProducts)return;
+ loadingProducts=true;
+ productsMessage.textContent="Chargement du catalogue…";
+ productsList.replaceChildren();
+ try{
+  const {data,error}=await supabase.from("products").select("id,name,description,price,image_url,stock,active").order("name");
+  if(error)throw error;
+  productsMessage.textContent=(data||[]).length+" produit(s) enregistré(s).";
+  for(const product of(data||[])){
+   const row=el("div",undefined,"product-row");
+   const image=el("img");image.src=product.image_url||"assets/wave-boutique.webp";image.alt="";
+   const info=el("div",undefined,"product-row-info");
+   info.append(el("strong",product.name));
+   info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")));
+   const actions=el("div",undefined,"product-row-actions");
+   const edit=el("button","Modifier","btn btn-dark");edit.type="button";
+   edit.addEventListener("click",()=>{
+    $("productId").value=product.id;$("productName").value=product.name;
+    $("productDescription").value=product.description||"";$("productPrice").value=product.price;
+    $("productStock").value=product.stock;$("productImage").value=product.image_url||"";
+    $("productActive").checked=product.active;$("saveProduct").textContent="Enregistrer les modifications";
+    $("cancelProductEdit").hidden=false;productForm.scrollIntoView({behavior:"smooth",block:"start"});
+   });
+   const toggle=el("button",product.active?"Masquer":"Réactiver","btn btn-gold");toggle.type="button";
+   toggle.addEventListener("click",async()=>{
+    toggle.disabled=true;const {error:updateError}=await supabase.from("products").update({active:!product.active}).eq("id",product.id);
+    if(updateError){productsMessage.textContent="Modification impossible : "+updateError.message;toggle.disabled=false;return;}
+    productsMessage.textContent=product.name+(product.active?" masqué.":" réactivé.");await loadProducts();
+   });
+   actions.append(edit,toggle);row.append(image,info,actions);productsList.append(row);
+  }
+ }catch(error){
+  productsMessage.textContent="Impossible de charger les produits : "+error.message;
+ }finally{
+  loadingProducts=false;
  }
 }
 
