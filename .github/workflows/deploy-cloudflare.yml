@@ -20,6 +20,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check products.js
+          node --check contact.js
+          node --input-type=module --check < auth.js
+          node --input-type=module --check < admin.js
+          node --input-type=module --check < checkout.js
+
       - name: Prepare static site
         run: |
           mkdir -p dist
