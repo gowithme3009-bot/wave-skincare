@@ -1,5 +1,6 @@
 /* Wave Skincare — interface boutique, panier et catalogue */
-(() => {
+window.WAVE_APP_READY = (async () => {
+  await (window.WAVE_PRODUCTS_READY || Promise.resolve());
   const $ = selector => document.querySelector(selector);
   const money = value => new Intl.NumberFormat("fr-FR").format(Number(value) || 0) + " Ar";
   const readCart = () => {
@@ -167,6 +168,6 @@
   const year = $("#year"); if (year) year.textContent = String(new Date().getFullYear());
   updateCart();
   window.WaveStore = { cart: () => cart.map(line => ({ ...line })), product, money, total, save, clear, toast, refresh: updateCart };
-  window.WAVE_APP_READY = Promise.resolve(window.WaveStore);
   window.dispatchEvent(new Event("wave:ready"));
+  return window.WaveStore;
 })();
