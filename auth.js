@@ -21,8 +21,10 @@ async function refreshSession(){
 }
 $("loginBtn").addEventListener("click",async()=>{
  const c=credentials(); if(!c.email||!c.password){message("Saisissez votre e-mail et votre mot de passe.");return;}
- message("Connexion en cours…"); const {error}=await supabase.auth.signInWithPassword(c);
- message(error?"Connexion impossible : "+error.message:"Connexion réussie."); await refreshSession();
+ message("Connexion en cours…"); const {data,error}=await supabase.auth.signInWithPassword(c);
+ if(error){message("Connexion impossible : "+error.message+(error.code?" ( "+error.code+" )":""));return;}
+ if(!data?.session){message("La connexion n’a pas créé de session. Vérifiez que le compte existe et que l’adresse e-mail est confirmée.");return;}
+ message("Connexion réussie. Chargement de votre espace…"); await refreshSession();
 });
 $("signupBtn").addEventListener("click",async()=>{
  const c=credentials(); if(!c.email||!c.password){message("Saisissez votre e-mail et un mot de passe d’au moins 6 caractères.");return;}
@@ -32,5 +34,5 @@ $("signupBtn").addEventListener("click",async()=>{
  await refreshSession();
 });
 $("logoutBtn").addEventListener("click",async()=>{const {error}=await supabase.auth.signOut();message(error?"Déconnexion impossible : "+error.message:"Vous êtes déconnecté.");await refreshSession();});
-supabase.auth.onAuthStateChange(()=>{refreshSession();});
+supabase.auth.onAuthStateChange((event)=>{ window.setTimeout(()=>{ if(event==="SIGNED_OUT"||event==="SIGNED_IN"||event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED") refreshSession(); },0); });
 refreshSession();
