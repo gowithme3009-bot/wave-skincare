@@ -1,42 +1,98 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+await (window.WAVE_APP_READY || Promise.resolve());
 const supabase = createClient(window.WAVE_SUPABASE_URL, window.WAVE_SUPABASE_PUBLISHABLE_KEY);
 const form = document.getElementById("orderForm");
 const list = document.getElementById("orderItems");
 const submitButton = form?.querySelector('button[type="submit"]');
 
+function node(tag, text, className) {
+  const element = document.createElement(tag);
+  if (text !== undefined) element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+
 function renderSummary() {
   if (!list || !window.WaveStore) return;
-  const cart = WaveStore.cart();
-  list.innerHTML = cart.length
-    ? cart.map(line => {
-        const product = WaveStore.product(line.id);
-        return product ? `<div class="summary-row"><span>${line.qty} × ${product.name}</span><b>${WaveStore.money(product.price * line.qty)}</b></div>` : "";
-      }).join("")
-    : "<p>Votre panier est vide.</p>";
+  const cart = window.WaveStore.cart();
+  list.replaceChildren();
+  if (!cart.length) {
+    list.append(node("p", "Votre panier est vide."));
+  } else {
+    for (const line of cart) {
+      const product = window.WaveStore.product(line.id);
+      if (!product) continue;
+      const row = node("div", undefined, "summary-row");
+      row.append(
+        node("span", line.qty + " × " + product.name),
+        node("b", window.WaveStore.money(product.price * line.qty))
+      );
+      list.append(row);
+    }
+  }
   const total = document.getElementById("orderTotal");
-  if (total) total.textContent = WaveStore.money(WaveStore.total());
+  if (total) total.textContent = window.WaveStore.money(window.WaveStore.total());
+}
+
+function showReceipt(orderNumber, serverTotal, orderedLines) {
+  form.replaceChildren();
+  const receipt = node("div", undefined, "order-receipt");
+  receipt.setAttribute("role", "status");
+  receipt.setAttribute("aria-live", "polite");
+  const eyebrow = node("p", "COMMANDE ENREGISTRÉE", "eyebrow");
+  const heading = node("h2", "Merci pour votre commande !");
+  const intro = node("p", "Votre référence :");
+  const reference = node("p", orderNumber, "receipt-reference");
+  const total = node("p", undefined, "receipt-total");
+  total.append(document.createTextNode("Montant enregistré : "), node("strong", window.WaveStore.money(Number(serverTotal))));
+  const payment = node("p", "Mode de paiement : paiement à la livraison.");
+  const message = node("p", "Votre commande est en attente de confirmation. Notre équipe vous contactera au numéro indiqué pour confirmer la disponibilité et la livraison.");
+  const back = node("a", "Retour à la boutique", "btn btn-gold full");
+  back.href = "boutique.html";
+  receipt.append(eyebrow, heading, intro, reference, total, payment, message, back);
+  form.append(receipt);
+
+  if (list) {
+    list.replaceChildren();
+    for (const line of orderedLines) {
+      const row = node("div", undefined, "summary-row");
+      row.append(
+        node("span", line.quantity + " × " + line.name),
+        node("b", window.WaveStore.money(line.lineTotal))
+      );
+      list.append(row);
+    }
+    list.append(node("p", "Commande enregistrée. Le montant final ci-dessus est calculé par le serveur."));
+  }
+  const orderTotal = document.getElementById("orderTotal");
+  if (orderTotal) orderTotal.textContent = window.WaveStore.money(Number(serverTotal));
 }
 
 renderSummary();
 
 form?.addEventListener("submit", async event => {
   event.preventDefault();
-  const cart = WaveStore.cart();
+  const cart = window.WaveStore?.cart() || [];
   if (!cart.length) {
-    WaveStore.toast("Votre panier est vide.");
+    window.WaveStore?.toast("Votre panier est vide.");
+    renderSummary();
     return;
   }
 
-  // Conserver une copie du panier pour afficher le reçu après vidage du panier.
   const orderedLines = cart.map(line => {
-    const product = WaveStore.product(line.id);
+    const product = window.WaveStore.product(line.id);
     return product ? {
       name: product.name,
       quantity: line.qty,
-      lineTotal: product.price * line.qty
+      lineTotal: Number(product.price) * line.qty
     } : null;
   }).filter(Boolean);
+
+  if (orderedLines.length !== cart.length) {
+    window.WaveStore.toast("Un produit du panier n'est plus reconnu. Actualisez la page.");
+    return;
+  }
 
   const data = new FormData(form);
   const customer = {
@@ -46,18 +102,17 @@ form?.addEventListener("submit", async event => {
     city: String(data.get("city") || "").trim(),
     note: String(data.get("note") || "").trim()
   };
-  const items = cart.map(line => {
-    const product = WaveStore.product(line.id);
-    return product ? { name: product.name, quantity: line.qty } : null;
-  }).filter(Boolean);
+  const items = orderedLines.map(line => ({ name: line.name, quantity: line.quantity }));
 
-  if (items.length !== cart.length) {
-    WaveStore.toast("Un produit du panier n'est plus reconnu. Actualisez la page.");
+  if (!customer.name || !customer.phone || !customer.address || !customer.city) {
+    window.WaveStore.toast("Veuillez remplir les informations de livraison obligatoires.");
     return;
   }
 
-  submitButton.disabled = true;
-  submitButton.textContent = "Enregistrement de votre commande…";
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Enregistrement de votre commande…";
+  }
 
   try {
     const { data: result, error } = await supabase.rpc("create_guest_cod_order", {
@@ -65,54 +120,19 @@ form?.addEventListener("submit", async event => {
       p_items: items
     });
     if (error) throw error;
-    if (!result?.success || !result?.order_number) {
-      throw new Error("La commande n'a pas pu être confirmée.");
+    if (!result?.success || !result?.order_number || !Number.isFinite(Number(result.total))) {
+      throw new Error("La commande n'a pas pu être enregistrée correctement.");
     }
 
-    // Vider le panier persistant, mais conserver le reçu visible sur cette page.
-    localStorage.removeItem("waveCart");
-
-    form.innerHTML = `
-      <div role="status" style="text-align:center;padding:22px 4px">
-        <p class="eyebrow">COMMANDE ENREGISTRÉE</p>
-        <h2>Merci pour votre commande !</h2>
-        <p>Votre référence :</p>
-        <p style="font-size:22px;font-weight:700;color:#a66c0c"></p>
-        <p>Montant : <strong></strong></p>
-        <p>Mode de paiement : <strong>Paiement à la livraison</strong>.</p>
-        <p>Votre commande est en attente de confirmation. Notre équipe vous contactera au numéro indiqué pour confirmer la disponibilité et la livraison.</p>
-        <a class="btn btn-gold full" href="boutique.html">Retour à la boutique</a>
-      </div>`;
-
-    const receipt = form.querySelector('[role="status"]');
-    const paragraphs = receipt.querySelectorAll("p");
-    paragraphs[2].textContent = result.order_number;
-    paragraphs[3].querySelector("strong").textContent = WaveStore.money(Number(result.total));
-
-    // Afficher le contenu réel de la commande, pas le panier désormais vide.
-    if (list) {
-      list.replaceChildren();
-      orderedLines.forEach(line => {
-        const row = document.createElement("div");
-        row.className = "summary-row";
-        const label = document.createElement("span");
-        label.textContent = `${line.quantity} × ${line.name}`;
-        const amount = document.createElement("b");
-        amount.textContent = WaveStore.money(line.lineTotal);
-        row.append(label, amount);
-        list.append(row);
-      });
-      const note = document.createElement("p");
-      note.textContent = "Commande enregistrée.";
-      list.append(note);
-    }
-
-    const orderTotal = document.getElementById("orderTotal");
-    if (orderTotal) orderTotal.textContent = WaveStore.money(Number(result.total));
+    // Le serveur valide le stock et recalcule le montant avant d'enregistrer.
+    window.WaveStore.clear();
+    showReceipt(result.order_number, result.total, orderedLines);
   } catch (error) {
     console.error("Wave Skincare order error:", error);
-    WaveStore.toast(error?.message || "Impossible d'enregistrer la commande. Réessayez.");
-    submitButton.disabled = false;
-    submitButton.textContent = "Confirmer ma commande — paiement à la livraison";
+    window.WaveStore.toast(error?.message || "Impossible d'enregistrer la commande. Réessayez.");
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "Confirmer ma commande — paiement à la livraison";
+    }
   }
 });
