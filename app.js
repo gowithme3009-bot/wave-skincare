@@ -14,6 +14,7 @@ window.WAVE_APP_READY = (async () => {
   };
   let cart = readCart();
   const product = id => (window.WAVE_PRODUCTS || []).find(item => item.id === id);
+  const knownStock = item => item && item.stock !== null && item.stock !== undefined && item.stock !== "" && Number.isFinite(Number(item.stock));
   const count = () => cart.reduce((sum, line) => sum + line.qty, 0);
   const total = () => cart.reduce((sum, line) => sum + (Number(product(line.id)?.price) || 0) * line.qty, 0);
   const save = () => {
@@ -55,7 +56,7 @@ window.WAVE_APP_READY = (async () => {
         const amount = el("span", line.qty);
         const plus = el("button", "+"); plus.type = "button"; plus.dataset.qty = line.id; plus.dataset.step = "1"; plus.setAttribute("aria-label", "Augmenter la quantité");
         const stock = Number(item.stock);
-        if (Number.isFinite(stock) && stock >= 0 && line.qty >= stock) plus.disabled = true;
+        if (knownStock(item) && stock >= 0 && line.qty >= stock) plus.disabled = true;
         const remove = el("button", "Retirer", "remove"); remove.type = "button"; remove.dataset.remove = line.id;
         controls.append(minus, amount, plus, remove);
         details.append(controls); row.append(image, details); items.append(row);
@@ -70,7 +71,7 @@ window.WAVE_APP_READY = (async () => {
     const existing = cart.find(line => line.id === id);
     const next = (existing?.qty || 0) + 1;
     const stock = Number(item.stock);
-    if (Number.isFinite(stock) && stock >= 0 && next > stock) return toast(stock === 0 ? "Ce produit est momentanément indisponible." : "Stock disponible insuffisant.");
+    if (knownStock(item) && stock >= 0 && next > stock) return toast(stock === 0 ? "Ce produit est momentanément indisponible." : "Stock disponible insuffisant.");
     if (existing) existing.qty = next;
     else cart.push({ id, qty: 1 });
     save(); toast("Produit ajouté au panier.");
@@ -86,7 +87,7 @@ window.WAVE_APP_READY = (async () => {
     bottom.append(el("b", money(item.price)));
     const button = el("button", "＋ Ajouter", "add-button"); button.type = "button"; button.dataset.add = item.id;
     const stock = Number(item.stock);
-    if (Number.isFinite(stock) && stock <= 0) { button.disabled = true; button.textContent = "Indisponible"; }
+    if (knownStock(item) && stock <= 0) { button.disabled = true; button.textContent = "Indisponible"; }
     bottom.append(button); copy.append(bottom); article.append(anchor, copy);
     return article;
   }
@@ -117,7 +118,7 @@ window.WAVE_APP_READY = (async () => {
         const next = line.qty + Number(quantityButton.dataset.step);
         const item = product(line.id);
         const stock = Number(item?.stock);
-        if (next > 0 && Number.isFinite(stock) && stock >= 0 && next > stock) return toast("Stock disponible insuffisant.");
+        if (next > 0 && knownStock(item) && stock >= 0 && next > stock) return toast("Stock disponible insuffisant.");
         if (next <= 0) cart = cart.filter(entry => entry.id !== line.id);
         else line.qty = Math.min(99, next);
         save();
