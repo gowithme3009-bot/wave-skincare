@@ -12,7 +12,7 @@ function showResetMode(){
   resetMode=true;
   $("accountTitle").textContent="Choisissez un nouveau mot de passe";
   $("accountIntro").textContent="Créez un mot de passe personnel d’au moins 8 caractères.";
-  $("passwordLabel").textContent="Nouveau mot de passe";
+  $("passwordLabelText").textContent="Nouveau mot de passe";
   $("password").value=""; $("password").autocomplete="new-password"; $("password").placeholder="8 caractères minimum"; $("password").minLength=8;
   $("confirmLabel").hidden=false; $("passwordConfirm").hidden=false;
   $("loginBtn").hidden=true; $("signupBtn").hidden=true; $("forgotPasswordBtn").hidden=true; $("updatePasswordBtn").hidden=false;
@@ -83,7 +83,7 @@ $("updatePasswordBtn").addEventListener("click",async()=>{
   resetMode=false;
   $("confirmLabel").hidden=true;$("passwordConfirm").hidden=true;$("updatePasswordBtn").hidden=true;
   $("loginBtn").hidden=false;$("signupBtn").hidden=false;$("forgotPasswordBtn").hidden=false;
-  $("passwordLabel").textContent="Mot de passe";$("password").value="";$("password").minLength=6;$("password").autocomplete="current-password";
+  $("passwordLabelText").textContent="Mot de passe";$("password").value="";$("password").minLength=6;$("password").autocomplete="current-password";
   $("accountTitle").textContent="Mot de passe modifié";
   $("accountIntro").textContent="Votre nouveau mot de passe est enregistré. Vous pouvez maintenant vous connecter.";
   message("Mot de passe mis à jour avec succès. Connectez-vous avec votre nouveau mot de passe.");
