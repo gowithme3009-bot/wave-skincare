@@ -57,10 +57,7 @@ function showReceipt(orderNumber, serverTotal, orderedLines) {
     list.replaceChildren();
     for (const line of orderedLines) {
       const row = node("div", undefined, "summary-row");
-      row.append(
-        node("span", line.quantity + " × " + line.name),
-        node("b", window.WaveStore.money(line.lineTotal))
-      );
+      row.append(node("span", line.quantity + " × " + line.name));
       list.append(row);
     }
     list.append(node("p", "Commande enregistrée. Le montant final ci-dessus est calculé par le serveur."));
@@ -84,8 +81,7 @@ form?.addEventListener("submit", async event => {
     const product = window.WaveStore.product(line.id);
     return product ? {
       name: product.name,
-      quantity: line.qty,
-      lineTotal: Number(product.price) * line.qty
+      quantity: line.qty
     } : null;
   }).filter(Boolean);
 
