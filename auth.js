@@ -4,9 +4,20 @@ const $ = id => document.getElementById(id);
 const message = (s) => { $("authMessage").textContent = s; };
 const credentials = () => ({ email: $("email").value.trim(), password: $("password").value });
 let resetMode = new URLSearchParams(location.search).get("mode") === "reset";
+let sessionPasswordMode = false;
 function setBusy(busy, label){
   ["loginBtn","signupBtn","forgotPasswordBtn","updatePasswordBtn","logoutBtn"].forEach(id=>{const el=$(id);if(el)el.disabled=busy;});
   if(busy && label) message(label);
+}
+function showSessionPasswordMode(){
+  sessionPasswordMode=true;
+  $("accountTitle").textContent="Sécurisez votre compte";
+  $("accountIntro").textContent="Votre session est active. Choisissez un nouveau mot de passe sans recevoir d’e-mail.";
+  $("passwordLabelText").textContent="Nouveau mot de passe";
+  $("password").value=""; $("password").autocomplete="new-password"; $("password").placeholder="8 caractères minimum"; $("password").minLength=8;
+  $("confirmLabel").hidden=false; $("passwordConfirm").hidden=false;
+  $("loginBtn").hidden=true; $("signupBtn").hidden=true; $("forgotPasswordBtn").hidden=true; $("updatePasswordBtn").hidden=false;
+  message("Session active : vous pouvez modifier votre mot de passe directement.");
 }
 function showResetMode(){
   resetMode=true;
@@ -23,6 +34,7 @@ async function refreshSession(){
   if(error){message("Erreur de session : "+error.message);return;}
   if(resetMode)return;
   if(data.session){
+    showSessionPasswordMode();
     $("logoutBtn").hidden=false;
     $("email").value=data.session.user.email||"";
     message("Connecté : "+(data.session.user.email||"")+". Vérification de votre profil…");
@@ -79,14 +91,22 @@ $("updatePasswordBtn").addEventListener("click",async()=>{
  try{
   const {error}=await supabase.auth.updateUser({password});
   if(error){message("Mise à jour impossible : "+error.message);return;}
-  history.replaceState({},document.title,location.pathname);
-  resetMode=false;
-  $("confirmLabel").hidden=true;$("passwordConfirm").hidden=true;$("updatePasswordBtn").hidden=true;
-  $("loginBtn").hidden=false;$("signupBtn").hidden=false;$("forgotPasswordBtn").hidden=false;
-  $("passwordLabelText").textContent="Mot de passe";$("password").value="";$("password").minLength=6;$("password").autocomplete="current-password";
-  $("accountTitle").textContent="Mot de passe modifié";
-  $("accountIntro").textContent="Votre nouveau mot de passe est enregistré. Vous pouvez maintenant vous connecter.";
-  message("Mot de passe mis à jour avec succès. Connectez-vous avec votre nouveau mot de passe.");
+  if(sessionPasswordMode){
+    $("password").value=""; $("passwordConfirm").value="";
+    $("accountTitle").textContent="Mot de passe modifié";
+    $("accountIntro").textContent="Votre nouveau mot de passe est enregistré. Votre session reste active.";
+    message("Mot de passe mis à jour avec succès. Vous restez connecté à votre compte.");
+    await refreshSession();
+  } else {
+    history.replaceState({},document.title,location.pathname);
+    resetMode=false;
+    $("confirmLabel").hidden=true;$("passwordConfirm").hidden=true;$("updatePasswordBtn").hidden=true;
+    $("loginBtn").hidden=false;$("signupBtn").hidden=false;$("forgotPasswordBtn").hidden=false;
+    $("passwordLabelText").textContent="Mot de passe";$("password").value="";$("password").minLength=6;$("password").autocomplete="current-password";
+    $("accountTitle").textContent="Mot de passe modifié";
+    $("accountIntro").textContent="Votre nouveau mot de passe est enregistré. Vous pouvez maintenant vous connecter.";
+    message("Mot de passe mis à jour avec succès. Connectez-vous avec votre nouveau mot de passe.");
+  }
  }catch(e){message("Erreur réseau pendant la mise à jour.");}
  finally{setBusy(false);}
 });
