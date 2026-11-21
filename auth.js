@@ -3,6 +3,45 @@ const supabase = createClient(window.WAVE_SUPABASE_URL, window.WAVE_SUPABASE_PUB
 const $ = id => document.getElementById(id);
 const message = (s) => { $("authMessage").textContent = s; };
 const credentials = () => ({ email: $("email").value.trim(), password: $("password").value });
+
+const orderLabels = {pending:"À confirmer",confirmed:"Confirmée",preparing:"En préparation",shipped:"En livraison",delivered:"Livrée",cancelled:"Annulée"};
+let currentCustomerId = null;
+let customerOrdersLoading = false;
+const money = value => new Intl.NumberFormat("fr-FR").format(Number(value || 0)) + " Ar";
+function orderNode(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
+async function loadCustomerOrders(){
+  const section=$("customerOrdersSection"), target=$("customerOrders");
+  if(!section||!target||!currentCustomerId||customerOrdersLoading)return;
+  customerOrdersLoading=true;section.hidden=false;target.replaceChildren(orderNode("p","Chargement de vos commandes…","muted"));
+  try{
+    const {data:orders,error}=await supabase.from("orders")
+      .select("id,order_number,status,payment_method,payment_status,total,created_at")
+      .eq("user_id",currentCustomerId).order("created_at",{ascending:false}).limit(20);
+    if(error)throw error;
+    if(!orders?.length){target.replaceChildren(orderNode("p","Vous n’avez pas encore de commande associée à ce compte. Vos prochaines commandes passées après connexion apparaîtront ici.","muted"));return;}
+    const ids=orders.map(order=>order.id);
+    const {data:lines,error:linesError}=await supabase.from("order_items")
+      .select("order_id,product_name,quantity,unit_price").in("order_id",ids);
+    if(linesError)throw linesError;
+    const grouped=new Map();
+    for(const line of(lines||[])){if(!grouped.has(line.order_id))grouped.set(line.order_id,[]);grouped.get(line.order_id).push(line);}
+    target.replaceChildren();
+    for(const order of orders){
+      const card=orderNode("article",undefined,"customer-order");
+      const head=orderNode("div",undefined,"customer-order-head");
+      head.append(orderNode("strong",order.order_number),orderNode("span",orderLabels[order.status]||"Statut en cours"));
+      card.append(head,orderNode("small",new Date(order.created_at).toLocaleString("fr-FR")));
+      const list=orderNode("ul");
+      for(const line of(grouped.get(order.id)||[]))list.append(orderNode("li",line.quantity+" × "+line.product_name+" — "+money(line.unit_price)+" / unité"));
+      card.append(list,orderNode("p","Total : "+money(order.total),"customer-order-total"));
+      card.append(orderNode("p","Paiement à la livraison · "+(order.payment_status==="paid"?"Payé":"Non payé"),"muted"));
+      target.append(card);
+    }
+  }catch(error){target.replaceChildren(orderNode("p","Impossible de charger vos commandes : "+(error?.message||"erreur inconnue"),"muted"));}
+  finally{customerOrdersLoading=false;}
+}
+$("refreshCustomerOrders")?.addEventListener("click",loadCustomerOrders);
+
 let resetMode = new URLSearchParams(location.search).get("mode") === "reset";
 let sessionPasswordMode = false;
 function setBusy(busy, label){
@@ -41,11 +80,12 @@ async function refreshSession(){
     const {data:profile,error:pErr}=await supabase.from("profiles").select("role, full_name").eq("id",data.session.user.id).maybeSingle();
     if(pErr){message("Connecté, mais lecture du profil impossible : "+pErr.message+".");return;}
     message("Connecté en tant que "+(profile?.full_name||data.session.user.email)+". Rôle : "+(profile?.role||"customer")+".");
+    if(profile?.role==="customer"){currentCustomerId=data.session.user.id;await loadCustomerOrders();}else{currentCustomerId=null;$("customerOrdersSection").hidden=true;}
     if(profile?.role==="admin"){
       const link=document.createElement("a");link.href="admin.html";link.className="btn btn-gold";link.textContent="Ouvrir l’administration";
       $("authMessage").append(document.createTextNode(" "),link);
     }
-  } else { $("logoutBtn").hidden=true; message("Vous n’êtes pas connecté. Connectez-vous ou créez votre compte."); }
+  } else { currentCustomerId=null;$("customerOrdersSection").hidden=true;$("logoutBtn").hidden=true; message("Vous n’êtes pas connecté. Connectez-vous ou créez votre compte."); }
 }
 $("loginBtn").addEventListener("click",async()=>{
  const c=credentials(); if(!c.email||!c.password){message("Saisissez votre adresse e-mail et votre mot de passe.");return;}
