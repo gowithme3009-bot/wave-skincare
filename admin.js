@@ -65,12 +65,27 @@ async function loadProducts(){
    info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")));
    const actions=el("div",undefined,"product-row-actions");
    const edit=el("button","Modifier","btn btn-dark");edit.type="button";
-   edit.addEventListener("click",()=>{
-    $("productId").value=product.id;$("productName").value=product.name;
-    $("productDescription").value=product.description||"";$("productPrice").value=product.price;
-    $("productStock").value=product.stock;$("productImage").value=product.image_url||"";
-    $("productActive").checked=product.active;$("saveProduct").textContent="Enregistrer les modifications";
-    $("cancelProductEdit").hidden=false;productForm.scrollIntoView({behavior:"smooth",block:"start"});
+   edit.addEventListener("click",async()=>{
+    edit.disabled=true;
+    productsMessage.textContent="Vérification des informations actuelles de "+product.name+"…";
+    try{
+     const {data:current,error:currentError}=await supabase.from("products")
+      .select("id,name,description,price,image_url,stock,active").eq("id",product.id).single();
+     if(currentError)throw currentError;
+     $("productId").value=current.id;
+     $("productName").value=current.name;
+     $("productDescription").value=current.description||"";
+     $("productPrice").value=String(Number(current.price));
+     $("productStock").value=String(current.stock);
+     $("productImage").value=current.image_url||"";
+     $("productActive").checked=Boolean(current.active);
+     $("saveProduct").textContent="Enregistrer les modifications";
+     $("cancelProductEdit").hidden=false;
+     productsMessage.textContent="Fiche chargée depuis Supabase. Prix actuel : "+money(current.price)+". Vérifiez avant d’enregistrer.";
+     productForm.scrollIntoView({behavior:"smooth",block:"start"});
+    }catch(error){
+     productsMessage.textContent="Impossible de vérifier la fiche : "+error.message;
+    }finally{edit.disabled=false;}
    });
    const toggle=el("button",product.active?"Masquer":"Réactiver","btn btn-gold");toggle.type="button";
    toggle.addEventListener("click",async()=>{
