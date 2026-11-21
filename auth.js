@@ -31,10 +31,25 @@ async function loadCustomerOrders(){
       const head=orderNode("div",undefined,"customer-order-head");
       head.append(orderNode("strong",order.order_number),orderNode("span",orderLabels[order.status]||"Statut en cours"));
       card.append(head,orderNode("small",new Date(order.created_at).toLocaleString("fr-FR")));
+      const stages=[["pending","À confirmer"],["confirmed","Confirmée"],["preparing","Préparation"],["shipped","En livraison"],["delivered","Livrée"]];
+      if(order.status==="cancelled"){
+        card.append(orderNode("p","Cette commande a été annulée.","order-cancelled"));
+      }else{
+        const currentStage=stages.findIndex(([key])=>key===order.status);
+        const progress=orderNode("div",undefined,"order-progress");
+        progress.setAttribute("aria-label","Progression de la commande");
+        for(let index=0;index<stages.length;index++){
+          const step=orderNode("span",stages[index][1],"order-progress-step"+(index<=currentStage?" is-done":"")+(index===currentStage?" is-current":""));
+          progress.append(step);
+        }
+        card.append(progress);
+      }
       const list=orderNode("ul");
       for(const line of(grouped.get(order.id)||[]))list.append(orderNode("li",line.quantity+" × "+line.product_name+" — "+money(line.unit_price)+" / unité"));
       card.append(list,orderNode("p","Total : "+money(order.total),"customer-order-total"));
-      card.append(orderNode("p","Paiement à la livraison · "+(order.payment_status==="paid"?"Payé":"Non payé"),"muted"));
+      const paymentLabel=order.payment_method==="airtel_money"?"Airtel Money":"Paiement à la livraison";
+      const paymentStatus=order.payment_status==="paid"?"Payé et vérifié":order.payment_method==="airtel_money"?"En attente de vérification":"À régler à la livraison";
+      card.append(orderNode("p","Paiement : "+paymentLabel+" · "+paymentStatus,"muted"));
       target.append(card);
     }
   }catch(error){target.replaceChildren(orderNode("p","Impossible de charger vos commandes : "+(error?.message||"erreur inconnue"),"muted"));}
