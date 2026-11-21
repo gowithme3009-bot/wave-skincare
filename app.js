@@ -168,6 +168,13 @@ window.WAVE_APP_READY = (async () => {
   }
   const year = $("#year"); if (year) year.textContent = String(new Date().getFullYear());
   updateCart();
+  const welcomeParams = new URLSearchParams(location.search);
+  if (welcomeParams.get("welcome") === "1") {
+    toast("Bienvenue chez Wave Skincare ! Votre compte est prêt.");
+    welcomeParams.delete("welcome");
+    const remaining = welcomeParams.toString();
+    history.replaceState({}, document.title, location.pathname + (remaining ? "?" + remaining : "") + location.hash);
+  }
   window.WaveStore = { cart: () => cart.map(line => ({ ...line })), product, money, total, save, clear, toast, refresh: updateCart };
   window.dispatchEvent(new Event("wave:ready"));
   return window.WaveStore;
