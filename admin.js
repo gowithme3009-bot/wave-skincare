@@ -212,9 +212,6 @@ function renderOrders(){
   detailPanel.append(el("p","Note de livraison : "+(customer.note||"Aucune note communiquée")));
   detailPanel.append(el("p","Identifiant technique : "+order.id));
   detailPanel.append(el("p","Date d’enregistrement : "+new Date(order.created_at).toLocaleString("fr-FR")));
-  const detailItems=el("ul",undefined,"order-items");
-  for(const item of(order.order_items||[]))detailItems.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
-  detailPanel.append(detailItems);
   const items=el("ul",undefined,"order-items");
   for(const item of(order.order_items||[]))items.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
   card.append(items);
@@ -225,7 +222,7 @@ function renderOrders(){
    card.append(el("p","Numéro destinataire : "+(customer.payment_recipient||"+261 33 82 03 366")));
    const declaredReference=String(customer.payment_reference||"").trim();
    card.append(el("p","Référence déclarée par le client : "+(declaredReference||"Non fournie")));
-   if(/^\\d{4,}$/.test(declaredReference)){
+   if(/^\d{4,}$/.test(declaredReference)){
     card.append(el("p","À CONTRÔLER : la référence ne contient que des chiffres. Vérifiez qu’il s’agit bien de l’identifiant de transaction et non du montant saisi par le client.","airtel-reference-warning"));
    }
    if (order.payment_status !== "paid") card.append(el("p","Vérifiez le montant réellement crédité, le numéro de l’expéditeur et la référence dans votre compte Airtel Money avant de marquer cette commande comme payée."));
