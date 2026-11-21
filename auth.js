@@ -45,18 +45,30 @@ $("refreshCustomerOrders")?.addEventListener("click",loadCustomerOrders);
 let resetMode = new URLSearchParams(location.search).get("mode") === "reset";
 let sessionPasswordMode = false;
 function setBusy(busy, label){
-  ["loginBtn","signupBtn","forgotPasswordBtn","updatePasswordBtn","logoutBtn"].forEach(id=>{const el=$(id);if(el)el.disabled=busy;});
+  ["loginBtn","signupBtn","forgotPasswordBtn","updatePasswordBtn","changePasswordBtn","logoutBtn"].forEach(id=>{const el=$(id);if(el)el.disabled=busy;});
   if(busy && label) message(label);
+}
+function showAccountSessionMode(){
+  sessionPasswordMode=false;
+  $("accountTitle").textContent="Mon espace Wave";
+  $("accountIntro").textContent="Votre espace personnel est prêt. Retrouvez vos commandes et gérez votre compte.";
+  $("email").closest("label").hidden=true;
+  $("passwordLabel").hidden=true; $("confirmLabel").hidden=true; $("passwordConfirm").hidden=true;
+  $("loginBtn").hidden=true; $("signupBtn").hidden=true; $("forgotPasswordBtn").hidden=true;
+  $("updatePasswordBtn").hidden=true; $("changePasswordBtn").hidden=false;
 }
 function showSessionPasswordMode(){
   sessionPasswordMode=true;
   $("accountTitle").textContent="Sécurisez votre compte";
-  $("accountIntro").textContent="Votre session est active. Choisissez un nouveau mot de passe sans recevoir d’e-mail.";
+  $("accountIntro").textContent="Choisissez un nouveau mot de passe pour votre compte Wave.";
+  $("email").closest("label").hidden=true;
+  $("passwordLabel").hidden=false;
   $("passwordLabelText").textContent="Nouveau mot de passe";
   $("password").value=""; $("password").autocomplete="new-password"; $("password").placeholder="8 caractères minimum"; $("password").minLength=8;
   $("confirmLabel").hidden=false; $("passwordConfirm").hidden=false;
-  $("loginBtn").hidden=true; $("signupBtn").hidden=true; $("forgotPasswordBtn").hidden=true; $("updatePasswordBtn").hidden=false;
-  message("Session active : vous pouvez modifier votre mot de passe directement.");
+  $("loginBtn").hidden=true; $("signupBtn").hidden=true; $("forgotPasswordBtn").hidden=true;
+  $("changePasswordBtn").hidden=true; $("updatePasswordBtn").hidden=false;
+  message("Vous pouvez maintenant modifier votre mot de passe.");
 }
 function showResetMode(){
   resetMode=true;
@@ -73,19 +85,29 @@ async function refreshSession(){
   if(error){message("Erreur de session : "+error.message);return;}
   if(resetMode)return;
   if(data.session){
-    showSessionPasswordMode();
+    if(sessionPasswordMode) showSessionPasswordMode(); else showAccountSessionMode();
     $("logoutBtn").hidden=false;
     $("email").value=data.session.user.email||"";
     message("Connecté : "+(data.session.user.email||"")+". Vérification de votre profil…");
     const {data:profile,error:pErr}=await supabase.from("profiles").select("role, full_name").eq("id",data.session.user.id).maybeSingle();
     if(pErr){message("Connecté, mais lecture du profil impossible : "+pErr.message+".");return;}
     message("Connecté en tant que "+(profile?.full_name||data.session.user.email)+". Rôle : "+(profile?.role||"customer")+".");
-    if(profile?.role==="customer"){currentCustomerId=data.session.user.id;await loadCustomerOrders();}else{currentCustomerId=null;$("customerOrdersSection").hidden=true;}
+    if(profile?.role==="customer"){
+      currentCustomerId=data.session.user.id;await loadCustomerOrders();
+      if(new URLSearchParams(location.search).get("view")==="orders") $("customerOrdersSection").scrollIntoView({behavior:"smooth",block:"start"});
+    }else{currentCustomerId=null;$("customerOrdersSection").hidden=true;}
     if(profile?.role==="admin"){
       const link=document.createElement("a");link.href="admin.html";link.className="btn btn-gold";link.textContent="Ouvrir l’administration";
       $("authMessage").append(document.createTextNode(" "),link);
     }
-  } else { currentCustomerId=null;$("customerOrdersSection").hidden=true;$("logoutBtn").hidden=true; message("Vous n’êtes pas connecté. Connectez-vous ou créez votre compte."); }
+  } else {
+    currentCustomerId=null;$("customerOrdersSection").hidden=true;$("logoutBtn").hidden=true;
+    $("email").closest("label").hidden=false;$("passwordLabel").hidden=false;$("confirmLabel").hidden=true;$("passwordConfirm").hidden=true;
+    $("loginBtn").hidden=false;$("signupBtn").hidden=false;$("forgotPasswordBtn").hidden=false;$("updatePasswordBtn").hidden=true;$("changePasswordBtn").hidden=true;
+    $("accountTitle").textContent="Bienvenue chez Wave.";
+    $("accountIntro").textContent="Connectez-vous pour retrouver votre espace client et suivre vos commandes.";
+    message("Vous n’êtes pas connecté. Connectez-vous ou créez votre compte.");
+  }
 }
 $("loginBtn").addEventListener("click",async()=>{
  const c=credentials(); if(!c.email||!c.password){message("Saisissez votre adresse e-mail et votre mot de passe.");return;}
@@ -108,7 +130,12 @@ $("signupBtn").addEventListener("click",async()=>{
  try{
   const {data,error}=await supabase.auth.signUp(c);
   if(error){message("Inscription impossible : "+error.message);return;}
-  message(data.session?"Compte créé et connecté.":"Compte créé. Consultez votre boîte e-mail pour confirmer l’adresse, puis connectez-vous.");
+  if(data.session){
+    message("Compte créé. Ouverture de la boutique…");
+    location.replace("boutique.html?welcome=1");
+    return;
+  }
+  message("Compte créé. Consultez votre boîte e-mail pour confirmer l’adresse, puis connectez-vous.");
   await refreshSession();
  }catch(e){message("Erreur réseau pendant la création du compte.");}
  finally{setBusy(false);}
@@ -123,6 +150,7 @@ $("forgotPasswordBtn").addEventListener("click",async()=>{
  }catch(e){message("Erreur réseau. Impossible d’envoyer l’e-mail pour le moment.");}
  finally{setBusy(false);}
 });
+$("changePasswordBtn").addEventListener("click",()=>showSessionPasswordMode());
 $("updatePasswordBtn").addEventListener("click",async()=>{
  const password=$("password").value, confirm=$("passwordConfirm").value;
  if(password.length<8){message("Le nouveau mot de passe doit contenir au moins 8 caractères.");return;}
@@ -135,8 +163,9 @@ $("updatePasswordBtn").addEventListener("click",async()=>{
     $("password").value=""; $("passwordConfirm").value="";
     $("accountTitle").textContent="Mot de passe modifié";
     $("accountIntro").textContent="Votre nouveau mot de passe est enregistré. Votre session reste active.";
-    message("Mot de passe mis à jour avec succès. Vous restez connecté à votre compte.");
+    sessionPasswordMode=false;
     await refreshSession();
+    message("Mot de passe mis à jour avec succès. Votre session reste active.");
   } else {
     history.replaceState({},document.title,location.pathname);
     resetMode=false;
