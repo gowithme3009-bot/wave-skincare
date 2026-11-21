@@ -1,23 +1,4 @@
-/* Wave Skincare — navigation indépendante du chargement du catalogue */
-(() => {
-  const menuButton = document.getElementById("menuToggle");
-  const menu = document.getElementById("mainNav");
-  if (!menuButton || !menu || menuButton.dataset.waveMenuReady === "1") return;
-  menuButton.dataset.waveMenuReady = "1";
-  menuButton.addEventListener("click", () => {
-    const expanded = menu.classList.toggle("show");
-    menuButton.setAttribute("aria-expanded", String(expanded));
-    menuButton.setAttribute("aria-label", expanded ? "Fermer le menu" : "Ouvrir le menu");
-  });
-  menu.addEventListener("click", event => {
-    if (event.target instanceof Element && event.target.closest("a")) {
-      menu.classList.remove("show");
-      menuButton.setAttribute("aria-expanded", "false");
-      menuButton.setAttribute("aria-label", "Ouvrir le menu");
-    }
-  });
-})();
-
+/* Le menu mobile est géré par navigation.js sur toutes les pages. */
 window.WAVE_APP_READY = (async () => {
   await (window.WAVE_PRODUCTS_READY || Promise.resolve());
   const $ = selector => document.querySelector(selector);
