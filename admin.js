@@ -281,7 +281,7 @@ function exportOrdersCsv(){
    order.payment_status==="paid"?"Payé":"Non payé",labels[order.status]||order.status,customer.payment_reference
   ];
  });
- const csv="\\uFEFF"+[columns,...data].map(row=>row.map(escapeCsv).join(";")).join("\\r\\n");
+ const csv=String.fromCharCode(0xFEFF)+[columns,...data].map(row=>row.map(escapeCsv).join(";")).join(String.fromCharCode(13,10));
  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
  const url=URL.createObjectURL(blob);
  const link=document.createElement("a");link.href=url;link.download="wave-commandes-"+new Date().toISOString().slice(0,10)+".csv";
