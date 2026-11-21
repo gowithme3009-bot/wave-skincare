@@ -1,4 +1,4 @@
-/* Wave Skincare — interface boutique, panier et catalogue */
+/* Le menu mobile est géré par navigation.js sur toutes les pages. */
 window.WAVE_APP_READY = (async () => {
   await (window.WAVE_PRODUCTS_READY || Promise.resolve());
   const $ = selector => document.querySelector(selector);
@@ -13,6 +13,11 @@ window.WAVE_APP_READY = (async () => {
     } catch { return []; }
   };
   let cart = readCart();
+  const readFavorites = () => {
+    try { const value = JSON.parse(localStorage.getItem("waveFavorites") || "[]"); return Array.isArray(value) ? value.filter(id => typeof id === "string") : []; }
+    catch { return []; }
+  };
+  let favorites = readFavorites();
   const product = id => (window.WAVE_PRODUCTS || []).find(item => item.id === id);
   const knownStock = item => item && item.stock !== null && item.stock !== undefined && item.stock !== "" && Number.isFinite(Number(item.stock));
   const count = () => cart.reduce((sum, line) => sum + line.qty, 0);
@@ -81,6 +86,10 @@ window.WAVE_APP_READY = (async () => {
     const anchor = el("a", undefined, "product-image"); anchor.href = "commande.html";
     const image = el("img"); image.src = item.image || "assets/wave-boutique.webp"; image.alt = item.name || "Produit Wave"; image.loading = "lazy";
     anchor.append(image, el("span", item.tag || "SOIN WAVE"));
+    const favorite = el("button", favorites.includes(item.id) ? "♥" : "♡", "favorite-button");
+    favorite.type = "button"; favorite.dataset.favorite = item.id;
+    favorite.setAttribute("aria-label", favorites.includes(item.id) ? "Retirer des favoris" : "Ajouter aux favoris");
+    favorite.setAttribute("aria-pressed", String(favorites.includes(item.id)));
     const copy = el("div", undefined, "product-card-copy");
     copy.append(el("small", [item.category, item.size].filter(Boolean).join(" · ")), el("h3", item.name), el("p", item.desc || ""));
     const bottom = el("div", undefined, "product-card-bottom");
@@ -88,7 +97,7 @@ window.WAVE_APP_READY = (async () => {
     const button = el("button", "＋ Ajouter", "add-button"); button.type = "button"; button.dataset.add = item.id;
     const stock = Number(item.stock);
     if (knownStock(item) && stock <= 0) { button.disabled = true; button.textContent = "Indisponible"; }
-    bottom.append(button); copy.append(bottom); article.append(anchor, copy);
+    bottom.append(button); copy.append(bottom); article.append(anchor, favorite, copy);
     return article;
   }
   function renderProducts(target, items) {
@@ -111,6 +120,19 @@ window.WAVE_APP_READY = (async () => {
     if (!(target instanceof Element)) return;
     const addButton = target.closest("[data-add]");
     if (addButton) add(addButton.dataset.add);
+    const favoriteButton = target.closest("[data-favorite]");
+    if (favoriteButton) {
+      const id = favoriteButton.dataset.favorite;
+      favorites = favorites.includes(id) ? favorites.filter(value => value !== id) : [...favorites, id];
+      try { localStorage.setItem("waveFavorites", JSON.stringify(favorites)); } catch {}
+      document.querySelectorAll("[data-favorite]").forEach(button => {
+        const active = favorites.includes(button.dataset.favorite);
+        button.textContent = active ? "♥" : "♡";
+        button.setAttribute("aria-label", active ? "Retirer des favoris" : "Ajouter aux favoris");
+        button.setAttribute("aria-pressed", String(active));
+      });
+      window.dispatchEvent(new Event("wave:favorites-change"));
+    }
     const quantityButton = target.closest("[data-qty]");
     if (quantityButton) {
       const line = cart.find(entry => entry.id === quantityButton.dataset.qty);
@@ -131,11 +153,6 @@ window.WAVE_APP_READY = (async () => {
   $("#cartClose")?.addEventListener("click", () => drawer(false));
   $("#cartBackdrop")?.addEventListener("click", () => drawer(false));
   document.addEventListener("keydown", event => { if (event.key === "Escape") drawer(false); });
-  $("#menuToggle")?.addEventListener("click", () => {
-    const nav = $("#mainNav"); if (!nav) return;
-    const expanded = nav.classList.toggle("show");
-    $("#menuToggle")?.setAttribute("aria-expanded", String(expanded));
-  });
   $("#searchToggle")?.addEventListener("click", () => $("#searchPanel")?.classList.toggle("show"));
   const runSearch = () => {
     const query = $("#searchInput")?.value.trim();
@@ -156,18 +173,47 @@ window.WAVE_APP_READY = (async () => {
       [item.name, item.desc, item.category].join(" ").toLocaleLowerCase("fr").includes(query));
     const original = [...list];
     const sort = $("#sortProducts");
+    const categoryFilter = $("#filterCategory");
+    const stockFilter = $("#filterStock");
+    const favoritesFilter = $("#filterFavorites");
+    if (categoryFilter) {
+      const categories = [...new Set(original.map(item => item.category || "Soin"))].sort((a,b) => a.localeCompare(b,"fr"));
+      for (const category of categories) {
+        const option = document.createElement("option");
+        option.value = category; option.textContent = category; categoryFilter.append(option);
+      }
+    }
     const render = () => {
-      list = [...original];
+      list = original.filter(item => {
+        const categoryMatch = !categoryFilter || categoryFilter.value === "all" || (item.category || "Soin") === categoryFilter.value;
+        const hasStock = !knownStock(item) || Number(item.stock) > 0;
+        const favoriteMatch = !favoritesFilter || favoritesFilter.value !== "favorites" || favorites.includes(item.id);
+        const stockMatch = !stockFilter || stockFilter.value === "all" ||
+          (stockFilter.value === "available" ? hasStock : !hasStock);
+        return categoryMatch && stockMatch && favoriteMatch;
+      });
       if (sort?.value === "price-asc") list.sort((a, b) => Number(a.price) - Number(b.price));
       if (sort?.value === "price-desc") list.sort((a, b) => Number(b.price) - Number(a.price));
       renderProducts(all, list);
       const resultCount = $("#resultCount");
-      if (resultCount) resultCount.textContent = list.length + " produit(s)";
+      if (resultCount) resultCount.textContent = list.length + " produit(s) affiché(s)";
     };
-    sort?.addEventListener("change", render); render();
+    sort?.addEventListener("change", render);
+    categoryFilter?.addEventListener("change", render);
+    stockFilter?.addEventListener("change", render);
+    favoritesFilter?.addEventListener("change", render);
+    window.addEventListener("wave:favorites-change", render);
+    render();
   }
   const year = $("#year"); if (year) year.textContent = String(new Date().getFullYear());
   updateCart();
+  const welcomeParams = new URLSearchParams(location.search);
+  if (welcomeParams.get("welcome") === "1") {
+    toast("Bienvenue chez Wave Skincare ! Votre compte est prêt.");
+    welcomeParams.delete("welcome");
+    const remaining = welcomeParams.toString();
+    history.replaceState({}, document.title, location.pathname + (remaining ? "?" + remaining : "") + location.hash);
+  }
   window.WaveStore = { cart: () => cart.map(line => ({ ...line })), product, money, total, save, clear, toast, refresh: updateCart };
   window.dispatchEvent(new Event("wave:ready"));
   return window.WaveStore;

@@ -1,0 +1,90 @@
+/* Wave Skincare — expérience client et administration */
+:root{--wave-cream:#faf7f1;--wave-paper:#fffefa;--wave-ink:#30271f;--wave-muted:#786c60;--wave-gold:#b98536;--wave-line:#e9dfd2;--wave-admin:#29241f}
+.customer-page{background:var(--wave-cream)}
+.customer-page .account-wrap{max-width:760px;margin:clamp(24px,5vw,58px) auto;padding:18px}
+.customer-page .account-card{border:1px solid var(--wave-line);border-radius:24px;background:linear-gradient(145deg,#fffefa,#f8f0e5);box-shadow:0 20px 55px rgba(58,42,27,.09);padding:clamp(22px,5vw,42px)}
+.customer-page .account-card>.eyebrow{color:#9a713d}
+.customer-page .account-card h1{font-size:clamp(2rem,6vw,3rem);letter-spacing:-.04em}
+.customer-page .account-card .muted{max-width:560px}
+.customer-page .account-card input{min-height:52px;border-radius:13px;border-color:#dfd1bf;background:#fffefa}
+.customer-page .account-actions{gap:12px}
+.customer-page .account-actions .btn{min-height:48px;border-radius:14px}
+.customer-page .account-msg{border-radius:14px;background:#f4ecdf;border-color:#e7dac7}
+.customer-page .customer-orders{margin-top:28px;padding-top:24px}
+.customer-page .customer-orders h2{font-size:1.8rem}
+.customer-page .customer-order{padding:17px;border-radius:16px;border-color:#e8ddce;background:#fffefa;box-shadow:0 8px 22px rgba(58,42,27,.04)}
+.customer-page .customer-order-head{align-items:center}
+.customer-page .customer-order-head strong{overflow-wrap:anywhere}
+.customer-page .customer-order-total{color:#8a622d}
+.customer-page .account-foot{margin-top:24px}
+.admin-page{background:#f2f0ec;color:#302b25}
+.admin-page .announcement{background:#29241f;color:#f6ead9}
+.admin-page .site-header{background:#302b25;border-bottom:1px solid #51483e}
+.admin-page .site-header .logo,.admin-page .site-header .main-nav a{color:#fff8ed}
+.admin-page .site-header .logo small{color:#d8c5aa}
+.admin-page .menu-toggle{background:#51483e;color:#fff8ed}
+.admin-page .admin-wrap{max-width:1180px!important;margin:28px auto!important;padding:clamp(14px,3vw,30px)!important}
+.admin-page .admin-wrap>h1{font-size:clamp(2rem,4vw,3rem);letter-spacing:-.04em;margin:5px 0 25px}
+.admin-page .admin-wrap>.eyebrow{color:#947044;font-weight:800;letter-spacing:.16em}
+.admin-page .admin-panel{background:#fffefa!important;border:1px solid #e3ddd4!important;border-radius:20px!important;padding:clamp(18px,3vw,28px)!important;margin:18px 0!important;box-shadow:0 12px 32px rgba(37,31,24,.055)!important}
+.admin-page .admin-panel h2{font-size:1.35rem;letter-spacing:-.02em;margin-top:0}
+.admin-page .admin-status{background:#f5f1ea;border:1px solid #e8dfd3;border-radius:12px;color:#51483e}
+.admin-page .order-stat{background:#f6f2eb!important;border-color:#e8dfd3!important;border-radius:15px}
+.admin-page .order-stat strong{font-size:clamp(20px,2.5vw,28px);color:#3e3429}
+.admin-page .order-card{background:#fffefa;border:1px solid #e7dfd4!important;border-radius:16px!important;box-shadow:0 7px 20px rgba(37,31,24,.035)}
+.admin-page .order-pill{background:#eee5d8;color:#634b2e;font-weight:700}
+.admin-page .product-row{padding:15px 0;border-color:#eee7de}
+.admin-page .product-row img{width:66px;height:66px;border-radius:12px}
+.admin-page .product-admin-form input:not([type=checkbox]),.admin-page .product-admin-form textarea,.admin-page .order-filters input,.admin-page .order-filters select{min-height:45px;border-radius:11px;border-color:#ded5c9;background:#fffefa}
+.admin-page .admin-actions .btn,.admin-page .order-actions .btn{border-radius:12px}
+.admin-page .tutorial-panel{background:#fbf8f2!important}
+.admin-page .tutorial-panel details{border-color:#e8dfd3}
+.admin-page .tutorial-panel summary{padding:5px 0;font-weight:700}
+.admin-page .admin-wrap section{scroll-margin-top:95px}
+@media(max-width:680px){
+ .customer-page .account-wrap{padding:12px}
+ .customer-page .account-card{border-radius:19px;padding:22px 18px}
+ .customer-page .customer-order-head{align-items:flex-start}
+ .admin-page .admin-wrap{margin:12px auto!important;padding:12px!important}
+ .admin-page .admin-panel{border-radius:16px!important;padding:16px!important}
+ .admin-page .product-row{gap:9px}
+ .admin-page .product-row img{width:54px;height:54px}
+}
+
+/* Menu administration : visibilité explicite sur petits écrans */
+@media(max-width:680px){
+  .admin-page .site-header{position:sticky;top:0;z-index:100}
+  .admin-page .site-header .main-nav{display:none;position:absolute;top:100%;left:0;right:0;z-index:101;flex-direction:column;align-items:stretch;gap:0;padding:10px 20px 16px;background:#302b25;border-top:1px solid #51483e;box-shadow:0 16px 28px rgba(0,0,0,.22)}
+  .admin-page .site-header .main-nav.show{display:flex!important}
+  .admin-page .site-header .main-nav a{display:block;width:100%;padding:13px 4px;color:#fff8ed;border-bottom:1px solid #51483e}
+  .admin-page .site-header .main-nav a:last-child{border-bottom:0}
+  .admin-page .menu-toggle{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;position:relative;z-index:102}
+}
+/* Filtres du catalogue : ergonomie mobile */
+.shop-toolbar{flex-wrap:wrap;align-items:center}
+.shop-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.shop-filters select{min-height:42px;min-width:145px;padding:10px 14px;border:1px solid var(--line);border-radius:24px;background:#fffefa;color:var(--brown)}
+@media(max-width:680px){
+ .shop-toolbar{align-items:stretch;flex-direction:column}
+ .shop-filters{display:grid;grid-template-columns:1fr 1fr;width:100%}
+ .shop-filters select{min-width:0;width:100%;max-width:none!important;font-size:11px}
+ .shop-filters #sortProducts{grid-column:1/-1}
+}
+
+/* Favoris clients */
+.product-card{position:relative}
+.favorite-button{position:absolute;top:12px;right:12px;z-index:3;width:38px;height:38px;border:1px solid #e7d8c4;border-radius:50%;background:#fffefaed;color:#a45a48;font-size:22px;line-height:1;box-shadow:0 4px 14px rgba(45,32,20,.12);cursor:pointer}
+.favorite-button[aria-pressed="true"]{background:#fff0ed;color:#b54a45}
+@media(max-width:680px){.favorite-button{top:8px;right:8px;width:32px;height:32px;font-size:19px}}
+
+/* Suivi de commande dans l’espace client */
+.order-progress{display:flex;gap:6px;align-items:stretch;margin:14px 0 18px}
+.order-progress-step{position:relative;flex:1;min-width:0;padding-top:18px;text-align:center;font-size:10px;line-height:1.25;color:#948779}
+.order-progress-step:before{content:"";position:absolute;top:4px;left:50%;width:10px;height:10px;border-radius:50%;background:#e4d9ca;transform:translateX(-50%)}
+.order-progress-step:after{content:"";position:absolute;top:8px;left:calc(50% + 7px);width:calc(100% - 8px);height:2px;background:#e4d9ca}
+.order-progress-step:last-child:after{display:none}
+.order-progress-step.is-done{color:#76552e;font-weight:700}
+.order-progress-step.is-done:before,.order-progress-step.is-done:after{background:#b98536}
+.order-progress-step.is-current:before{outline:3px solid #b9853633}
+.order-cancelled{padding:8px 10px;border-radius:8px;background:#f8e9e5;color:#963e32;font-weight:700;font-size:13px}
+@media(max-width:420px){.order-progress{gap:2px}.order-progress-step{font-size:9px}}

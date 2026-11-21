@@ -93,12 +93,14 @@ async function loadProducts(){
   const {data,error}=await supabase.from("products").select("id,name,description,price,image_url,stock,active").order("name");
   if(error)throw error;
   productsMessage.textContent=(data||[]).length+" produit(s) enregistré(s).";
+  const lowStock=(data||[]).filter(p=>p.active && Number(p.stock)<=5).length;
+  setStat("statLowStock",String(lowStock));
   for(const product of(data||[])){
-   const row=el("div",undefined,"product-row");
+   const row=el("div",undefined,"product-row"+(product.active && Number(product.stock)<=5?" low-stock-row":""));
    const image=el("img");image.src=product.image_url||"assets/wave-boutique.webp";image.alt="";
    const info=el("div",undefined,"product-row-info");
    info.append(el("strong",product.name));
-   info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")));
+   info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")+(product.active && Number(product.stock)<=5?" · STOCK FAIBLE":"")));
    const actions=el("div",undefined,"product-row-actions");
    const edit=el("button","Modifier","btn btn-dark");edit.type="button";
    edit.addEventListener("click",async()=>{
@@ -174,6 +176,7 @@ function updateOrderStats(){
  setStat("statActive",String(ordersCache.filter(o=>["confirmed","preparing","shipped"].includes(o.status)).length));
  setStat("statDelivered",String(ordersCache.filter(o=>o.status==="delivered").length));
  setStat("statRevenue",money(ordersCache.reduce((sum,o)=>sum+Number(o.total||0),0)));
+ setStat("statAirtelPending",String(ordersCache.filter(o=>o.payment_method==="airtel_money" && o.payment_status!=="paid").length));
 }
 function waNumber(phone){
  let digits=String(phone||"").replace(/[^0-9]/g,"");
@@ -184,11 +187,12 @@ function waNumber(phone){
 function renderOrders(){
  ordersList.replaceChildren();
  const filter=$("orderStatusFilter")?.value||"all";
+ const paymentFilter=$("orderPaymentFilter")?.value||"all";
  const search=($("orderSearch")?.value||"").trim().toLocaleLowerCase("fr");
  const visible=ordersCache.filter(order=>{
   const customer=order.delivery_address||{};
   const haystack=[order.order_number,customer.name,customer.phone].join(" ").toLocaleLowerCase("fr");
-  return (filter==="all"||order.status===filter)&&(!search||haystack.includes(search));
+  return (filter==="all"||order.status===filter)&&(paymentFilter==="all"||order.payment_method===paymentFilter)&&(!search||haystack.includes(search));
  });
  if(!visible.length){ordersList.append(el("p",ordersCache.length?"Aucune commande ne correspond à ce filtre.":"Aucune commande pour le moment."));return;}
  for(const order of visible){
@@ -202,16 +206,54 @@ function renderOrders(){
   card.append(el("p","Client : "+(customer.name||"—")));
   card.append(el("p","Téléphone : "+(customer.phone||"—")));
   card.append(el("p","Adresse : "+[customer.address,customer.city].filter(Boolean).join(", ")));
+  const detailPanel=el("section",undefined,"order-detail-panel");
+  detailPanel.hidden=true;
+  detailPanel.append(el("h4","Détails complets"));
+  detailPanel.append(el("p","Note de livraison : "+(customer.note||"Aucune note communiquée")));
+  detailPanel.append(el("p","Identifiant technique : "+order.id));
+  detailPanel.append(el("p","Date d’enregistrement : "+new Date(order.created_at).toLocaleString("fr-FR")));
   const items=el("ul",undefined,"order-items");
   for(const item of(order.order_items||[]))items.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
   card.append(items);
-  card.append(el("p","Total à encaisser : "+money(order.total)));
-  card.append(el("p","Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
+  card.append(el("p","Total de la commande : "+money(order.total)));
+  const isAirtel = order.payment_method === "airtel_money";
+  card.append(el("p",isAirtel ? "Paiement : Airtel Money — "+(order.payment_status==="paid"?"PAYÉ (vérifié)":"EN ATTENTE DE VÉRIFICATION") : "Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
+  if (isAirtel) {
+   card.append(el("p","Numéro destinataire : "+(customer.payment_recipient||"+261 33 82 03 366")));
+   const declaredReference=String(customer.payment_reference||"").trim();
+   card.append(el("p","Référence déclarée par le client : "+(declaredReference||"Non fournie")));
+   if(/^\d{4,}$/.test(declaredReference)){
+    card.append(el("p","À CONTRÔLER : la référence ne contient que des chiffres. Vérifiez qu’il s’agit bien de l’identifiant de transaction et non du montant saisi par le client.","airtel-reference-warning"));
+   }
+   if (order.payment_status !== "paid") card.append(el("p","Vérifiez le montant réellement crédité, le numéro de l’expéditeur et la référence dans votre compte Airtel Money avant de marquer cette commande comme payée."));
+  }
   const actions=el("div",undefined,"order-actions");
+  const detailToggle=el("button","Détails complets","btn btn-dark");detailToggle.type="button";
+  detailToggle.setAttribute("aria-expanded","false");
+  detailToggle.addEventListener("click",()=>{
+   detailPanel.hidden=!detailPanel.hidden;
+   detailToggle.textContent=detailPanel.hidden?"Détails complets":"Masquer les détails";
+   detailToggle.setAttribute("aria-expanded",String(!detailPanel.hidden));
+  });
+  actions.append(detailToggle);
+  if (isAirtel && order.payment_status !== "paid") {
+   const paid=el("button","Confirmer la réception Airtel","btn btn-gold");paid.type="button";
+   paid.addEventListener("click",async()=>{
+    if(!window.confirm("Avez-vous vérifié dans votre compte Airtel Money que le montant exact a bien été reçu ?"))return;
+    paid.disabled=true;
+    const {data,error:paymentError}=await supabase.from("orders").update({payment_status:"paid"}).eq("id",order.id).eq("payment_status","unpaid").select("id").single();
+    if(paymentError||!data?.id){ordersMessage.textContent="Confirmation impossible : "+(paymentError?.message||"aucune ligne mise à jour.");paid.disabled=false;return;}
+    order.payment_status="paid";ordersMessage.textContent="Réception Airtel Money confirmée pour "+order.order_number+".";renderOrders();
+   });
+   actions.append(paid);
+  }
   const select=document.createElement("select");select.setAttribute("aria-label","Statut de la commande "+order.order_number);
   for(const key of allowedStatuses){const option=el("option",labels[key]);option.value=key;option.selected=key===order.status;select.append(option);}
   select.addEventListener("change",async()=>{
    select.disabled=true;const previous=order.status;
+   if(select.value==="cancelled" && previous!=="cancelled" && !window.confirm("Annuler cette commande ? Le stock ne sera pas restauré automatiquement. Après confirmation, vérifiez les quantités et ajustez-les manuellement dans « Catalogue et stock ».")){
+    select.value=previous;select.disabled=false;return;
+   }
    const {error:updateError}=await supabase.from("orders").update({status:select.value}).eq("id",order.id);
    if(updateError){ordersMessage.textContent="Mise à jour impossible : "+updateError.message;select.value=previous;}
    else{order.status=select.value;ordersMessage.textContent="Statut mis à jour pour "+order.order_number+".";updateOrderStats();renderOrders();}
@@ -220,12 +262,12 @@ function renderOrders(){
   actions.append(select);
   const phone=waNumber(customer.phone);
   if(phone){
-   const message="Bonjour "+(customer.name||"")+" , nous vous contactons au sujet de votre commande "+order.order_number+" chez Wave Skincare. Montant à régler à la livraison : "+money(order.total)+". Merci de confirmer votre disponibilité.";
+   const message="Bonjour "+(customer.name||"")+", nous vous contactons au sujet de votre commande "+order.order_number+" chez Wave Skincare. "+(isAirtel?"Votre transfert Airtel Money est en attente de vérification. Nous vous confirmerons la réception après contrôle.":"Montant à régler à la livraison : "+money(order.total)+". Merci de confirmer votre disponibilité.");
    const link=el("a","Préparer WhatsApp","btn btn-gold");
    link.href="https://wa.me/"+phone+"?text="+encodeURIComponent(message);link.target="_blank";link.rel="noopener";
    actions.append(link);
   }
-  card.append(actions);ordersList.append(card);
+  card.append(detailPanel,actions);ordersList.append(card);
  }
 }
 function notifyNewOrders(newOrders){
@@ -235,6 +277,40 @@ function notifyNewOrders(newOrders){
   new Notification("Wave Skincare — nouvelle commande",{body:newOrders.length===1?newOrders[0].order_number:newOrders.length+" nouvelles commandes reçues.",tag:"wave-new-orders"});
  }
 }
+function visibleOrders(){
+ const filter=$("orderStatusFilter")?.value||"all";
+ const paymentFilter=$("orderPaymentFilter")?.value||"all";
+ const search=($("orderSearch")?.value||"").trim().toLocaleLowerCase("fr");
+ return ordersCache.filter(order=>{
+  const customer=order.delivery_address||{};
+  const haystack=[order.order_number,customer.name,customer.phone].join(" ").toLocaleLowerCase("fr");
+  return (filter==="all"||order.status===filter)&&(paymentFilter==="all"||order.payment_method===paymentFilter)&&(!search||haystack.includes(search));
+ });
+}
+function exportOrdersCsv(){
+ const rows=visibleOrders();
+ if(!rows.length){ordersMessage.textContent="Aucune commande à exporter pour ces filtres.";return;}
+ const columns=["Commande","Date","Client","Téléphone","Adresse","Ville","Articles","Total Ar","Mode paiement","Statut paiement","Statut commande","Référence Airtel"];
+ const escapeCsv=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+ const data=rows.map(order=>{
+  const customer=order.delivery_address||{};
+  return [
+   order.order_number,new Date(order.created_at).toLocaleString("fr-FR"),
+   customer.name,customer.phone,customer.address,customer.city,
+   (order.order_items||[]).map(item=>item.quantity+" x "+item.product_name+" ("+money(item.unit_price)+")").join(" | "),
+   Number(order.total||0),order.payment_method==="airtel_money"?"Airtel Money":"Paiement à la livraison",
+   order.payment_status==="paid"?"Payé":"Non payé",labels[order.status]||order.status,customer.payment_reference
+  ];
+ });
+ const csv=String.fromCharCode(0xFEFF)+[columns,...data].map(row=>row.map(escapeCsv).join(";")).join(String.fromCharCode(13,10));
+ const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement("a");link.href=url;link.download="wave-commandes-"+new Date().toISOString().slice(0,10)+".csv";
+ document.body.append(link);link.click();link.remove();URL.revokeObjectURL(url);
+ ordersMessage.textContent=rows.length+" commande(s) exportée(s). L’export contient uniquement les commandes chargées et correspondant aux filtres.";
+}
+$("exportOrders")?.addEventListener("click",exportOrdersCsv);
+$("orderPaymentFilter")?.addEventListener("change",renderOrders);
 async function loadOrders({silent=false}={}){
  if(loadingOrders)return;
  loadingOrders=true;
