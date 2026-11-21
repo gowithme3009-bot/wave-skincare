@@ -151,15 +151,33 @@ window.WAVE_APP_READY = (async () => {
       [item.name, item.desc, item.category].join(" ").toLocaleLowerCase("fr").includes(query));
     const original = [...list];
     const sort = $("#sortProducts");
+    const categoryFilter = $("#filterCategory");
+    const stockFilter = $("#filterStock");
+    if (categoryFilter) {
+      const categories = [...new Set(original.map(item => item.category || "Soin"))].sort((a,b) => a.localeCompare(b,"fr"));
+      for (const category of categories) {
+        const option = document.createElement("option");
+        option.value = category; option.textContent = category; categoryFilter.append(option);
+      }
+    }
     const render = () => {
-      list = [...original];
+      list = original.filter(item => {
+        const categoryMatch = !categoryFilter || categoryFilter.value === "all" || (item.category || "Soin") === categoryFilter.value;
+        const hasStock = !knownStock(item) || Number(item.stock) > 0;
+        const stockMatch = !stockFilter || stockFilter.value === "all" ||
+          (stockFilter.value === "available" ? hasStock : !hasStock);
+        return categoryMatch && stockMatch;
+      });
       if (sort?.value === "price-asc") list.sort((a, b) => Number(a.price) - Number(b.price));
       if (sort?.value === "price-desc") list.sort((a, b) => Number(b.price) - Number(a.price));
       renderProducts(all, list);
       const resultCount = $("#resultCount");
-      if (resultCount) resultCount.textContent = list.length + " produit(s)";
+      if (resultCount) resultCount.textContent = list.length + " produit(s) affiché(s)";
     };
-    sort?.addEventListener("change", render); render();
+    sort?.addEventListener("change", render);
+    categoryFilter?.addEventListener("change", render);
+    stockFilter?.addEventListener("change", render);
+    render();
   }
   const year = $("#year"); if (year) year.textContent = String(new Date().getFullYear());
   updateCart();
