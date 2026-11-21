@@ -145,6 +145,11 @@ form?.addEventListener("submit", async event => {
   const items = orderedLines.map(line => ({ name: line.name, quantity: line.quantity }));
   const selectedPayment = paymentMethod?.value || "cash_on_delivery";
   const transferReference = String(airtelReference?.value || "").trim();
+  if (selectedPayment === "airtel_money" && transferReference === String(Math.round(window.WaveStore.total()))) {
+    window.WaveStore.toast("Vous avez saisi le montant. Indiquez la référence de transaction Airtel Money à la place.");
+    airtelReference?.focus();
+    return;
+  }
   if (selectedPayment === "airtel_money" && !/^[A-Za-z0-9-]{4,80}$/.test(transferReference)) {
     window.WaveStore.toast("Saisissez une référence Airtel Money valide après votre transfert.");
     return;
