@@ -241,7 +241,7 @@ function renderOrders(){
   actions.append(select);
   const phone=waNumber(customer.phone);
   if(phone){
-   const message="Bonjour "+(customer.name||"")+" , nous vous contactons au sujet de votre commande "+order.order_number+" chez Wave Skincare. Montant à régler à la livraison : "+money(order.total)+". Merci de confirmer votre disponibilité.";
+   const message="Bonjour "+(customer.name||"")+", nous vous contactons au sujet de votre commande "+order.order_number+" chez Wave Skincare. "+(isAirtel?"Votre transfert Airtel Money est en attente de vérification. Nous vous confirmerons la réception après contrôle.":"Montant à régler à la livraison : "+money(order.total)+". Merci de confirmer votre disponibilité.");
    const link=el("a","Préparer WhatsApp","btn btn-gold");
    link.href="https://wa.me/"+phone+"?text="+encodeURIComponent(message);link.target="_blank";link.rel="noopener";
    actions.append(link);
