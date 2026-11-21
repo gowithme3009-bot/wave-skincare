@@ -9,19 +9,22 @@
 <div class="admin-actions"><button class="btn btn-gold" id="saveProduct" type="submit">Ajouter le produit</button><button class="btn btn-dark" id="cancelProductEdit" type="button" hidden>Annuler la modification</button></div>
 </form><div id="productsMessage" class="admin-status">Chargement du catalogue…</div><div id="productsList"></div></section><section class="admin-panel" id="ordersDashboard">
 <h2>Vue d’ensemble des commandes</h2>
-<p>Statistiques calculées sur les 50 commandes les plus récentes chargées.</p>
+<p>Indicateurs calculés sur les 50 commandes les plus récentes chargées et le catalogue complet.</p>
 <div class="order-stats">
  <div class="order-stat"><span>Total chargé</span><strong id="statTotal">—</strong></div>
  <div class="order-stat"><span>À confirmer</span><strong id="statPending">—</strong></div>
  <div class="order-stat"><span>En préparation / livraison</span><strong id="statActive">—</strong></div>
  <div class="order-stat"><span>Livrées</span><strong id="statDelivered">—</strong></div>
  <div class="order-stat"><span>Montant des commandes chargées</span><strong id="statRevenue">—</strong></div>
+ <div class="order-stat"><span>Airtel à vérifier</span><strong id="statAirtelPending">—</strong></div>
+ <div class="order-stat"><span>Produits à réapprovisionner</span><strong id="statLowStock">—</strong></div>
 </div>
 </section>
-<section class="admin-panel"><h2>Commandes clients</h2><p>Commandes en paiement à la livraison. Vérifiez la disponibilité et contactez le client avant de confirmer.</p><p class="stock-meta"><strong>Attention :</strong> annuler une commande ne restaure pas automatiquement le stock. Après vérification, ajustez-le manuellement dans « Catalogue et stock ».</p>
+<section class="admin-panel"><h2>Commandes clients</h2><p>Gérez les commandes à la livraison et les transferts Airtel Money. Les statistiques et exports portent sur les 50 commandes les plus récentes chargées.</p><p class="stock-meta"><strong>Attention :</strong> annuler une commande ne restaure pas automatiquement le stock. Après vérification, ajustez-le manuellement dans « Catalogue et stock ».</p>
 <div class="order-tools">
  <div id="ordersMessage" class="admin-status" style="flex:1">Chargement des commandes…</div>
  <button id="refreshOrders" class="btn btn-dark" type="button">Actualiser</button>
+ <button id="exportOrders" class="btn btn-gold" type="button">Exporter CSV</button>
  <button id="enableOrderAlerts" class="btn btn-gold" type="button">Activer les alertes</button>
 </div>
 <p id="lastOrdersRefresh" class="stock-meta">Actualisation automatique : toutes les 30 secondes.</p>
@@ -31,6 +34,9 @@
  </label>
  <label>Rechercher
   <input id="orderSearch" type="search" placeholder="N° commande, client ou téléphone">
+ </label>
+ <label>Mode de paiement
+  <select id="orderPaymentFilter"><option value="all">Tous les paiements</option><option value="airtel_money">Airtel Money</option><option value="cash_on_delivery">Paiement à la livraison</option></select>
  </label>
 </div>
 <div id="ordersList"></div></section><a class="btn btn-gold" href="compte.html">Retour à mon compte</a></main><script src="supabase-config.js"></script><script type="module" src="admin.js"></script><script src="navigation.js?v=2"></script></body></html>
