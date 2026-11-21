@@ -50,3 +50,13 @@
  .admin-page .product-row{gap:9px}
  .admin-page .product-row img{width:54px;height:54px}
 }
+
+/* Menu administration : visibilité explicite sur petits écrans */
+@media(max-width:680px){
+  .admin-page .site-header{position:sticky;top:0;z-index:100}
+  .admin-page .site-header .main-nav{display:none;position:absolute;top:100%;left:0;right:0;z-index:101;flex-direction:column;align-items:stretch;gap:0;padding:10px 20px 16px;background:#302b25;border-top:1px solid #51483e;box-shadow:0 16px 28px rgba(0,0,0,.22)}
+  .admin-page .site-header .main-nav.show{display:flex!important}
+  .admin-page .site-header .main-nav a{display:block;width:100%;padding:13px 4px;color:#fff8ed;border-bottom:1px solid #51483e}
+  .admin-page .site-header .main-nav a:last-child{border-bottom:0}
+  .admin-page .menu-toggle{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;position:relative;z-index:102}
+}
