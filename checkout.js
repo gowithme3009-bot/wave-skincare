@@ -13,6 +13,28 @@ function node(tag, text, className) {
   return element;
 }
 
+const accountHint = document.getElementById("checkoutAccountHint");
+
+function setAccountHint(session) {
+  if (!accountHint) return;
+  accountHint.textContent = session?.user?.id
+    ? "Vous êtes connecté : votre commande sera automatiquement associée à votre compte et visible dans « Mes commandes »."
+    : "Vous pouvez commander sans compte. Si vous êtes connecté, votre commande sera automatiquement associée à votre compte.";
+}
+
+async function refreshCheckoutAccountHint() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    if (accountHint) accountHint.textContent = "La vérification de votre compte est momentanément indisponible.";
+    return;
+  }
+  setAccountHint(data.session);
+}
+
+supabase.auth.onAuthStateChange((_event, session) => {
+  setAccountHint(session);
+});
+
 function renderSummary() {
   if (!list || !window.WaveStore) return;
   const cart = window.WaveStore.cart();
@@ -73,7 +95,7 @@ form?.addEventListener("submit", async event => {
   const cart = window.WaveStore?.cart() || [];
   if (!cart.length) {
     window.WaveStore?.toast("Votre panier est vide.");
-    renderSummary();
+    renderSummary();\nrefreshCheckoutAccountHint();
     return;
   }
 
