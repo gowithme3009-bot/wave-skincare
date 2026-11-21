@@ -76,3 +76,15 @@
 .favorite-button{position:absolute;top:12px;right:12px;z-index:3;width:38px;height:38px;border:1px solid #e7d8c4;border-radius:50%;background:#fffefaed;color:#a45a48;font-size:22px;line-height:1;box-shadow:0 4px 14px rgba(45,32,20,.12);cursor:pointer}
 .favorite-button[aria-pressed="true"]{background:#fff0ed;color:#b54a45}
 @media(max-width:680px){.favorite-button{top:8px;right:8px;width:32px;height:32px;font-size:19px}}
+
+/* Suivi de commande dans l’espace client */
+.order-progress{display:flex;gap:6px;align-items:stretch;margin:14px 0 18px}
+.order-progress-step{position:relative;flex:1;min-width:0;padding-top:18px;text-align:center;font-size:10px;line-height:1.25;color:#948779}
+.order-progress-step:before{content:"";position:absolute;top:4px;left:50%;width:10px;height:10px;border-radius:50%;background:#e4d9ca;transform:translateX(-50%)}
+.order-progress-step:after{content:"";position:absolute;top:8px;left:calc(50% + 7px);width:calc(100% - 8px);height:2px;background:#e4d9ca}
+.order-progress-step:last-child:after{display:none}
+.order-progress-step.is-done{color:#76552e;font-weight:700}
+.order-progress-step.is-done:before,.order-progress-step.is-done:after{background:#b98536}
+.order-progress-step.is-current:before{outline:3px solid #b9853633}
+.order-cancelled{padding:8px 10px;border-radius:8px;background:#f8e9e5;color:#963e32;font-weight:700;font-size:13px}
+@media(max-width:420px){.order-progress{gap:2px}.order-progress-step{font-size:9px}}
