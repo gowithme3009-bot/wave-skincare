@@ -18,10 +18,27 @@ let savingProduct = false;
 function el(tag,text,className){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;}
 function setStat(id,value){const node=$(id);if(node)node.textContent=value;}
 
+function setImagePreview(url){
+ const preview=$("productImagePreview");
+ if(!preview)return;
+ if(url){preview.src=url;preview.hidden=false;}else{preview.removeAttribute("src");preview.hidden=true;}
+}
 function resetProductForm(){
  productForm.reset(); $("productId").value=""; $("productStock").value="0"; $("productActive").checked=true;
  $("saveProduct").textContent="Ajouter le produit"; $("cancelProductEdit").hidden=true;
+ $("productImageFile").value=""; setImagePreview("");
 }
+$("productImageFile")?.addEventListener("change",()=>{
+ const file=$("productImageFile").files?.[0];
+ if(!file){setImagePreview($("productImage").value.trim());return;}
+ if(!["image/jpeg","image/png","image/webp","image/avif"].includes(file.type)||file.size>5*1024*1024){
+  $("productImageFile").value="";setImagePreview($("productImage").value.trim());
+  productsMessage.textContent="Image non acceptée : choisissez JPG, PNG, WebP ou AVIF de 5 Mo maximum.";return;
+ }
+ setImagePreview(URL.createObjectURL(file));
+ productsMessage.textContent="Photo sélectionnée. Elle sera envoyée lors de l’enregistrement.";
+});
+$("productImage")?.addEventListener("input",()=>{if(!$("productImageFile")?.files?.length)setImagePreview($("productImage").value.trim());});
 $("cancelProductEdit")?.addEventListener("click",resetProductForm);
 productForm?.addEventListener("submit",async event=>{
  event.preventDefault();
@@ -42,6 +59,16 @@ productForm?.addEventListener("submit",async event=>{
  savingProduct=true;button.disabled=true;
  productsMessage.textContent="Enregistrement du produit…";
  try{
+  const selectedImage=$("productImageFile").files?.[0];
+  if(selectedImage){
+   if(!["image/jpeg","image/png","image/webp","image/avif"].includes(selectedImage.type)||selectedImage.size>5*1024*1024)throw new Error("Choisissez une image JPG, PNG, WebP ou AVIF de 5 Mo maximum.");
+   const extension=({ "image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/avif":"avif" })[selectedImage.type];
+   const unique=globalThis.crypto?.randomUUID?.()||Date.now()+"-"+Math.random().toString(36).slice(2);
+   const imagePath="products/"+unique+"."+extension;
+   const {error:uploadError}=await supabase.storage.from("product-images").upload(imagePath,selectedImage,{cacheControl:"3600",upsert:false,contentType:selectedImage.type});
+   if(uploadError)throw new Error("Envoi de la photo impossible : "+uploadError.message);
+   payload.image_url=supabase.storage.from("product-images").getPublicUrl(imagePath).data.publicUrl;
+  }
   const result=id
    ? await supabase.from("products").update(payload).eq("id",id).select("id").single()
    : await supabase.from("products").insert(payload).select("id").single();
@@ -87,6 +114,8 @@ async function loadProducts(){
      $("productPrice").value=String(Number(current.price));
      $("productStock").value=String(current.stock);
      $("productImage").value=current.image_url||"";
+     $("productImageFile").value="";
+     setImagePreview(current.image_url||"");
      $("productActive").checked=Boolean(current.active);
      $("saveProduct").textContent="Enregistrer les modifications";
      $("cancelProductEdit").hidden=false;
