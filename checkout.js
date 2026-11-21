@@ -96,7 +96,7 @@ form?.addEventListener("submit", async event => {
   const cart = window.WaveStore?.cart() || [];
   if (!cart.length) {
     window.WaveStore?.toast("Votre panier est vide.");
-    renderSummary();\nrefreshCheckoutAccountHint();
+    renderSummary();
     return;
   }
 
