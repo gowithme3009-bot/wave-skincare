@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +14,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate:
+    name: Validate application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check products.js
+          node --check contact.js
+          node --input-type=module --check < auth.js
+          node --input-type=module --check < admin.js
+          node --input-type=module --check < checkout.js
+      - name: Check redesign assets and routes
+        run: |
+          test -s wave-experience.css
+          grep -q 'customer-page' compte.html
+          grep -q 'admin-page' admin.html
+          grep -q 'compte.html?view=orders' checkout.js
+          grep -q 'boutique.html?welcome=1' auth.js
+
   deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
     name: Deploy production site
     runs-on: ubuntu-latest
     permissions:
