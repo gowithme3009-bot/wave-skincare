@@ -206,6 +206,15 @@ function renderOrders(){
   card.append(el("p","Client : "+(customer.name||"—")));
   card.append(el("p","Téléphone : "+(customer.phone||"—")));
   card.append(el("p","Adresse : "+[customer.address,customer.city].filter(Boolean).join(", ")));
+  const detailPanel=el("section",undefined,"order-detail-panel");
+  detailPanel.hidden=true;
+  detailPanel.append(el("h4","Détails complets"));
+  detailPanel.append(el("p","Note de livraison : "+(customer.note||"Aucune note communiquée")));
+  detailPanel.append(el("p","Identifiant technique : "+order.id));
+  detailPanel.append(el("p","Date d’enregistrement : "+new Date(order.created_at).toLocaleString("fr-FR")));
+  const detailItems=el("ul",undefined,"order-items");
+  for(const item of(order.order_items||[]))detailItems.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
+  detailPanel.append(detailItems);
   const items=el("ul",undefined,"order-items");
   for(const item of(order.order_items||[]))items.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
   card.append(items);
@@ -214,10 +223,22 @@ function renderOrders(){
   card.append(el("p",isAirtel ? "Paiement : Airtel Money — "+(order.payment_status==="paid"?"PAYÉ (vérifié)":"EN ATTENTE DE VÉRIFICATION") : "Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
   if (isAirtel) {
    card.append(el("p","Numéro destinataire : "+(customer.payment_recipient||"+261 33 82 03 366")));
-   card.append(el("p","Référence déclarée par le client : "+(customer.payment_reference||"Non fournie")));
-   if (order.payment_status !== "paid") card.append(el("p","Vérifiez le transfert dans le compte Airtel Money avant de marquer cette commande comme payée."));
+   const declaredReference=String(customer.payment_reference||"").trim();
+   card.append(el("p","Référence déclarée par le client : "+(declaredReference||"Non fournie")));
+   if(/^\\d{4,}$/.test(declaredReference)){
+    card.append(el("p","À CONTRÔLER : la référence ne contient que des chiffres. Vérifiez qu’il s’agit bien de l’identifiant de transaction et non du montant saisi par le client.","airtel-reference-warning"));
+   }
+   if (order.payment_status !== "paid") card.append(el("p","Vérifiez le montant réellement crédité, le numéro de l’expéditeur et la référence dans votre compte Airtel Money avant de marquer cette commande comme payée."));
   }
   const actions=el("div",undefined,"order-actions");
+  const detailToggle=el("button","Détails complets","btn btn-dark");detailToggle.type="button";
+  detailToggle.setAttribute("aria-expanded","false");
+  detailToggle.addEventListener("click",()=>{
+   detailPanel.hidden=!detailPanel.hidden;
+   detailToggle.textContent=detailPanel.hidden?"Détails complets":"Masquer les détails";
+   detailToggle.setAttribute("aria-expanded",String(!detailPanel.hidden));
+  });
+  actions.append(detailToggle);
   if (isAirtel && order.payment_status !== "paid") {
    const paid=el("button","Confirmer la réception Airtel","btn btn-gold");paid.type="button";
    paid.addEventListener("click",async()=>{
@@ -233,6 +254,9 @@ function renderOrders(){
   for(const key of allowedStatuses){const option=el("option",labels[key]);option.value=key;option.selected=key===order.status;select.append(option);}
   select.addEventListener("change",async()=>{
    select.disabled=true;const previous=order.status;
+   if(select.value==="cancelled" && previous!=="cancelled" && !window.confirm("Annuler cette commande ? Le stock ne sera pas restauré automatiquement. Après confirmation, vérifiez les quantités et ajustez-les manuellement dans « Catalogue et stock ».")){
+    select.value=previous;select.disabled=false;return;
+   }
    const {error:updateError}=await supabase.from("orders").update({status:select.value}).eq("id",order.id);
    if(updateError){ordersMessage.textContent="Mise à jour impossible : "+updateError.message;select.value=previous;}
    else{order.status=select.value;ordersMessage.textContent="Statut mis à jour pour "+order.order_number+".";updateOrderStats();renderOrders();}
@@ -246,7 +270,7 @@ function renderOrders(){
    link.href="https://wa.me/"+phone+"?text="+encodeURIComponent(message);link.target="_blank";link.rel="noopener";
    actions.append(link);
   }
-  card.append(actions);ordersList.append(card);
+  card.append(detailPanel,actions);ordersList.append(card);
  }
 }
 function notifyNewOrders(newOrders){
