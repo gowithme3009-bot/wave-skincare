@@ -57,7 +57,7 @@ function renderSummary() {
   if (total) total.textContent = window.WaveStore.money(window.WaveStore.total());
 }
 
-function showReceipt(orderNumber, serverTotal, orderedLines) {
+function showReceipt(orderNumber, serverTotal, orderedLines, authenticated = false) {
   form.replaceChildren();
   const receipt = node("div", undefined, "order-receipt");
   receipt.setAttribute("role", "status");
@@ -73,6 +73,12 @@ function showReceipt(orderNumber, serverTotal, orderedLines) {
   const back = node("a", "Retour à la boutique", "btn btn-gold full");
   back.href = "boutique.html";
   receipt.append(eyebrow, heading, intro, reference, total, payment, message, back);
+  if (authenticated) {
+    const accountLink = node("a", "Voir mes commandes", "btn btn-dark full");
+    accountLink.href = "compte.html?view=orders";
+    receipt.append(accountLink);
+    receipt.append(node("p", "Vous allez être redirigé vers votre espace client dans quelques secondes.", "form-hint"));
+  }
   form.append(receipt);
 
   if (list) {
@@ -157,7 +163,11 @@ form?.addEventListener("submit", async event => {
 
     // Le serveur valide le stock et recalcule le montant avant d'enregistrer.
     window.WaveStore.clear();
-    showReceipt(result.order_number, result.total, orderedLines);
+    const authenticated = Boolean(sessionData.session?.user?.id);
+    showReceipt(result.order_number, result.total, orderedLines, authenticated);
+    if (authenticated) {
+      window.setTimeout(() => location.replace("compte.html?view=orders"), 5000);
+    }
   } catch (error) {
     console.error("Wave Skincare order error:", error);
     window.WaveStore.toast(error?.message || "Impossible d'enregistrer la commande. Réessayez.");
