@@ -125,6 +125,12 @@ window.WAVE_APP_READY = (async () => {
       const id = favoriteButton.dataset.favorite;
       favorites = favorites.includes(id) ? favorites.filter(value => value !== id) : [...favorites, id];
       try { localStorage.setItem("waveFavorites", JSON.stringify(favorites)); } catch {}
+      document.querySelectorAll("[data-favorite]").forEach(button => {
+        const active = favorites.includes(button.dataset.favorite);
+        button.textContent = active ? "♥" : "♡";
+        button.setAttribute("aria-label", active ? "Retirer des favoris" : "Ajouter aux favoris");
+        button.setAttribute("aria-pressed", String(active));
+      });
       window.dispatchEvent(new Event("wave:favorites-change"));
     }
     const quantityButton = target.closest("[data-qty]");
