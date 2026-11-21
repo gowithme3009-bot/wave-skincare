@@ -100,7 +100,7 @@ async function loadProducts(){
    const image=el("img");image.src=product.image_url||"assets/wave-boutique.webp";image.alt="";
    const info=el("div",undefined,"product-row-info");
    info.append(el("strong",product.name));
-   info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")));
+   info.append(el("small",money(product.price)+" · Stock : "+product.stock+" · "+(product.active?"Visible":"Masqué")+(product.active && Number(product.stock)<=5?" · STOCK FAIBLE":"")));
    const actions=el("div",undefined,"product-row-actions");
    const edit=el("button","Modifier","btn btn-dark");edit.type="button";
    edit.addEventListener("click",async()=>{
