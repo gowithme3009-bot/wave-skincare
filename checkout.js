@@ -89,6 +89,7 @@ function showReceipt(orderNumber, serverTotal, orderedLines) {
 }
 
 renderSummary();
+refreshCheckoutAccountHint();
 
 form?.addEventListener("submit", async event => {
   event.preventDefault();
@@ -133,6 +134,18 @@ form?.addEventListener("submit", async event => {
   }
 
   try {
+    // Vérifier la session : la fonction SQL utilise auth.uid() pour rattacher
+    // automatiquement la commande au compte authentifié, sans faire confiance au navigateur.
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (sessionData.session) {
+      const { data: verifiedUser, error: userError } = await supabase.auth.getUser();
+      if (userError) throw new Error("Votre session client doit être vérifiée. Actualisez la page ou reconnectez-vous avant de commander.");
+      if (!verifiedUser.user || verifiedUser.user.id !== sessionData.session.user.id) {
+        throw new Error("La session client n’est pas valide. Reconnectez-vous avant de commander.");
+      }
+    }
+
     const { data: result, error } = await supabase.rpc("create_guest_cod_order", {
       p_customer: customer,
       p_items: items
