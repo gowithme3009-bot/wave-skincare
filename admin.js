@@ -14,6 +14,7 @@ let adminReady = false;
 let pollingTimer = null;
 let loadingOrders = false;
 let loadingProducts = false;
+let savingProduct = false;
 function el(tag,text,className){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;}
 function setStat(id,value){const node=$(id);if(node)node.textContent=value;}
 
@@ -24,6 +25,7 @@ function resetProductForm(){
 $("cancelProductEdit")?.addEventListener("click",resetProductForm);
 productForm?.addEventListener("submit",async event=>{
  event.preventDefault();
+ if(savingProduct)return;
  const id=$("productId").value;
  const payload={
   name:$("productName").value.trim(),
@@ -36,16 +38,23 @@ productForm?.addEventListener("submit",async event=>{
  if(!payload.name || !Number.isFinite(payload.price) || payload.price<0 || !Number.isInteger(payload.stock) || payload.stock<0){
   productsMessage.textContent="Vérifiez le nom, le prix et le stock (nombre entier positif ou nul).";return;
  }
- const button=$("saveProduct");button.disabled=true;productsMessage.textContent="Enregistrement du produit…";
+ const button=$("saveProduct");
+ savingProduct=true;button.disabled=true;
+ productsMessage.textContent="Enregistrement du produit…";
  try{
   const result=id
-   ? await supabase.from("products").update(payload).eq("id",id)
-   : await supabase.from("products").insert(payload);
+   ? await supabase.from("products").update(payload).eq("id",id).select("id").single()
+   : await supabase.from("products").insert(payload).select("id").single();
   if(result.error)throw result.error;
-  productsMessage.textContent=id?"Produit modifié avec succès.":"Nouveau produit ajouté au catalogue.";
-  resetProductForm();await loadProducts();
- }catch(error){productsMessage.textContent="Enregistrement impossible : "+error.message;}
- finally{button.disabled=false;}
+  if(!result.data?.id)throw new Error("Supabase n’a confirmé aucun enregistrement.");
+  productsMessage.textContent=id?"Produit modifié et enregistré avec succès.":"Nouveau produit ajouté et enregistré dans le catalogue.";
+  resetProductForm();
+  await loadProducts();
+ }catch(error){
+  productsMessage.textContent="Enregistrement impossible : "+(error?.message||"erreur inconnue")+". Vérifiez votre connexion et vos droits administrateur.";
+ }finally{
+  savingProduct=false;button.disabled=false;
+ }
 });
 
 async function loadProducts(){
@@ -89,11 +98,38 @@ async function loadProducts(){
    });
    const toggle=el("button",product.active?"Masquer":"Réactiver","btn btn-gold");toggle.type="button";
    toggle.addEventListener("click",async()=>{
-    toggle.disabled=true;const {error:updateError}=await supabase.from("products").update({active:!product.active}).eq("id",product.id);
-    if(updateError){productsMessage.textContent="Modification impossible : "+updateError.message;toggle.disabled=false;return;}
-    productsMessage.textContent=product.name+(product.active?" masqué.":" réactivé.");await loadProducts();
+    toggle.disabled=true;
+    try{
+     const {data,error:updateError}=await supabase.from("products").update({active:!product.active}).eq("id",product.id).select("id").single();
+     if(updateError)throw updateError;
+     if(!data?.id)throw new Error("Aucune modification confirmée par Supabase.");
+     productsMessage.textContent=product.name+(product.active?" masqué.":" réactivé.");
+     await loadProducts();
+    }catch(error){productsMessage.textContent="Modification impossible : "+error.message;toggle.disabled=false;}
    });
-   actions.append(edit,toggle);row.append(image,info,actions);productsList.append(row);
+   const remove=el("button","Supprimer","btn btn-dark");remove.type="button";
+   remove.addEventListener("click",async()=>{
+    if(!window.confirm("Supprimer définitivement « "+product.name+" » ? Cette action est irréversible. Un produit lié à une commande sera protégé."))return;
+    remove.disabled=true;productsMessage.textContent="Vérification de l’historique des commandes…";
+    try{
+     const {count,error:countError}=await supabase.from("order_items").select("id",{count:"exact",head:true}).eq("product_id",product.id);
+     if(countError)throw countError;
+     if((count||0)>0){
+      productsMessage.textContent="Suppression refusée : ce produit figure dans "+count+" ligne(s) de commande. Utilisez « Masquer » pour le retirer de la boutique sans perdre l’historique.";
+      remove.disabled=false;return;
+     }
+     const {data,error:deleteError}=await supabase.from("products").delete().eq("id",product.id).select("id").single();
+     if(deleteError)throw deleteError;
+     if(!data?.id)throw new Error("Supabase n’a confirmé aucune suppression.");
+     if($("productId").value===product.id)resetProductForm();
+     productsMessage.textContent="Produit supprimé définitivement.";
+     await loadProducts();
+    }catch(error){
+     productsMessage.textContent="Suppression impossible : "+(error?.message||"erreur inconnue");
+     remove.disabled=false;
+    }
+   });
+   actions.append(edit,toggle,remove);row.append(image,info,actions);productsList.append(row);
   }
  }catch(error){
   productsMessage.textContent="Impossible de charger les produits : "+error.message;
