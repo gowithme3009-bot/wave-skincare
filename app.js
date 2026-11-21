@@ -1,4 +1,23 @@
-/* Wave Skincare — interface boutique, panier et catalogue */
+/* Wave Skincare — navigation indépendante du chargement du catalogue */
+(() => {
+  const menuButton = document.getElementById("menuToggle");
+  const menu = document.getElementById("mainNav");
+  if (!menuButton || !menu || menuButton.dataset.waveMenuReady === "1") return;
+  menuButton.dataset.waveMenuReady = "1";
+  menuButton.addEventListener("click", () => {
+    const expanded = menu.classList.toggle("show");
+    menuButton.setAttribute("aria-expanded", String(expanded));
+    menuButton.setAttribute("aria-label", expanded ? "Fermer le menu" : "Ouvrir le menu");
+  });
+  menu.addEventListener("click", event => {
+    if (event.target instanceof Element && event.target.closest("a")) {
+      menu.classList.remove("show");
+      menuButton.setAttribute("aria-expanded", "false");
+      menuButton.setAttribute("aria-label", "Ouvrir le menu");
+    }
+  });
+})();
+
 window.WAVE_APP_READY = (async () => {
   await (window.WAVE_PRODUCTS_READY || Promise.resolve());
   const $ = selector => document.querySelector(selector);
@@ -131,11 +150,6 @@ window.WAVE_APP_READY = (async () => {
   $("#cartClose")?.addEventListener("click", () => drawer(false));
   $("#cartBackdrop")?.addEventListener("click", () => drawer(false));
   document.addEventListener("keydown", event => { if (event.key === "Escape") drawer(false); });
-  $("#menuToggle")?.addEventListener("click", () => {
-    const nav = $("#mainNav"); if (!nav) return;
-    const expanded = nav.classList.toggle("show");
-    $("#menuToggle")?.setAttribute("aria-expanded", String(expanded));
-  });
   $("#searchToggle")?.addEventListener("click", () => $("#searchPanel")?.classList.toggle("show"));
   const runSearch = () => {
     const query = $("#searchInput")?.value.trim();
