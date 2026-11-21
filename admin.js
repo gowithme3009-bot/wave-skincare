@@ -93,8 +93,10 @@ async function loadProducts(){
   const {data,error}=await supabase.from("products").select("id,name,description,price,image_url,stock,active").order("name");
   if(error)throw error;
   productsMessage.textContent=(data||[]).length+" produit(s) enregistré(s).";
+  const lowStock=(data||[]).filter(p=>p.active && Number(p.stock)<=5).length;
+  setStat("statLowStock",String(lowStock));
   for(const product of(data||[])){
-   const row=el("div",undefined,"product-row");
+   const row=el("div",undefined,"product-row"+(product.active && Number(product.stock)<=5?" low-stock-row":""));
    const image=el("img");image.src=product.image_url||"assets/wave-boutique.webp";image.alt="";
    const info=el("div",undefined,"product-row-info");
    info.append(el("strong",product.name));
@@ -174,6 +176,7 @@ function updateOrderStats(){
  setStat("statActive",String(ordersCache.filter(o=>["confirmed","preparing","shipped"].includes(o.status)).length));
  setStat("statDelivered",String(ordersCache.filter(o=>o.status==="delivered").length));
  setStat("statRevenue",money(ordersCache.reduce((sum,o)=>sum+Number(o.total||0),0)));
+ setStat("statAirtelPending",String(ordersCache.filter(o=>o.payment_method==="airtel_money" && o.payment_status!=="paid").length));
 }
 function waNumber(phone){
  let digits=String(phone||"").replace(/[^0-9]/g,"");
@@ -184,11 +187,12 @@ function waNumber(phone){
 function renderOrders(){
  ordersList.replaceChildren();
  const filter=$("orderStatusFilter")?.value||"all";
+ const paymentFilter=$("orderPaymentFilter")?.value||"all";
  const search=($("orderSearch")?.value||"").trim().toLocaleLowerCase("fr");
  const visible=ordersCache.filter(order=>{
   const customer=order.delivery_address||{};
   const haystack=[order.order_number,customer.name,customer.phone].join(" ").toLocaleLowerCase("fr");
-  return (filter==="all"||order.status===filter)&&(!search||haystack.includes(search));
+  return (filter==="all"||order.status===filter)&&(paymentFilter==="all"||order.payment_method===paymentFilter)&&(!search||haystack.includes(search));
  });
  if(!visible.length){ordersList.append(el("p",ordersCache.length?"Aucune commande ne correspond à ce filtre.":"Aucune commande pour le moment."));return;}
  for(const order of visible){
@@ -252,6 +256,40 @@ function notifyNewOrders(newOrders){
   new Notification("Wave Skincare — nouvelle commande",{body:newOrders.length===1?newOrders[0].order_number:newOrders.length+" nouvelles commandes reçues.",tag:"wave-new-orders"});
  }
 }
+function visibleOrders(){
+ const filter=$("orderStatusFilter")?.value||"all";
+ const paymentFilter=$("orderPaymentFilter")?.value||"all";
+ const search=($("orderSearch")?.value||"").trim().toLocaleLowerCase("fr");
+ return ordersCache.filter(order=>{
+  const customer=order.delivery_address||{};
+  const haystack=[order.order_number,customer.name,customer.phone].join(" ").toLocaleLowerCase("fr");
+  return (filter==="all"||order.status===filter)&&(paymentFilter==="all"||order.payment_method===paymentFilter)&&(!search||haystack.includes(search));
+ });
+}
+function exportOrdersCsv(){
+ const rows=visibleOrders();
+ if(!rows.length){ordersMessage.textContent="Aucune commande à exporter pour ces filtres.";return;}
+ const columns=["Commande","Date","Client","Téléphone","Adresse","Ville","Articles","Total Ar","Mode paiement","Statut paiement","Statut commande","Référence Airtel"];
+ const escapeCsv=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+ const data=rows.map(order=>{
+  const customer=order.delivery_address||{};
+  return [
+   order.order_number,new Date(order.created_at).toLocaleString("fr-FR"),
+   customer.name,customer.phone,customer.address,customer.city,
+   (order.order_items||[]).map(item=>item.quantity+" x "+item.product_name+" ("+money(item.unit_price)+")").join(" | "),
+   Number(order.total||0),order.payment_method==="airtel_money"?"Airtel Money":"Paiement à la livraison",
+   order.payment_status==="paid"?"Payé":"Non payé",labels[order.status]||order.status,customer.payment_reference
+  ];
+ });
+ const csv="\\uFEFF"+[columns,...data].map(row=>row.map(escapeCsv).join(";")).join("\\r\\n");
+ const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement("a");link.href=url;link.download="wave-commandes-"+new Date().toISOString().slice(0,10)+".csv";
+ document.body.append(link);link.click();link.remove();URL.revokeObjectURL(url);
+ ordersMessage.textContent=rows.length+" commande(s) exportée(s). L’export contient uniquement les commandes chargées et correspondant aux filtres.";
+}
+$("exportOrders")?.addEventListener("click",exportOrdersCsv);
+$("orderPaymentFilter")?.addEventListener("change",renderOrders);
 async function loadOrders({silent=false}={}){
  if(loadingOrders)return;
  loadingOrders=true;
