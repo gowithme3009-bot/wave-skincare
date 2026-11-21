@@ -60,3 +60,13 @@
   .admin-page .site-header .main-nav a:last-child{border-bottom:0}
   .admin-page .menu-toggle{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;position:relative;z-index:102}
 }
+/* Filtres du catalogue : ergonomie mobile */
+.shop-toolbar{flex-wrap:wrap;align-items:center}
+.shop-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.shop-filters select{min-height:42px;min-width:145px;padding:10px 14px;border:1px solid var(--line);border-radius:24px;background:#fffefa;color:var(--brown)}
+@media(max-width:680px){
+ .shop-toolbar{align-items:stretch;flex-direction:column}
+ .shop-filters{display:grid;grid-template-columns:1fr 1fr;width:100%}
+ .shop-filters select{min-width:0;width:100%;max-width:none!important;font-size:11px}
+ .shop-filters #sortProducts{grid-column:1/-1}
+}
