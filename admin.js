@@ -205,9 +205,26 @@ function renderOrders(){
   const items=el("ul",undefined,"order-items");
   for(const item of(order.order_items||[]))items.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
   card.append(items);
-  card.append(el("p","Total à encaisser : "+money(order.total)));
-  card.append(el("p","Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
+  card.append(el("p","Total de la commande : "+money(order.total)));
+  const isAirtel = order.payment_method === "airtel_money";
+  card.append(el("p",isAirtel ? "Paiement : Airtel Money — "+(order.payment_status==="paid"?"PAYÉ (vérifié)":"EN ATTENTE DE VÉRIFICATION") : "Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
+  if (isAirtel) {
+   card.append(el("p","Numéro destinataire : "+(customer.payment_recipient||"+261 33 82 03 366")));
+   card.append(el("p","Référence déclarée par le client : "+(customer.payment_reference||"Non fournie")));
+   if (order.payment_status !== "paid") card.append(el("p","Vérifiez le transfert dans le compte Airtel Money avant de marquer cette commande comme payée."));
+  }
   const actions=el("div",undefined,"order-actions");
+  if (isAirtel && order.payment_status !== "paid") {
+   const paid=el("button","Confirmer la réception Airtel","btn btn-gold");paid.type="button";
+   paid.addEventListener("click",async()=>{
+    if(!window.confirm("Avez-vous vérifié dans votre compte Airtel Money que le montant exact a bien été reçu ?"))return;
+    paid.disabled=true;
+    const {data,error:paymentError}=await supabase.from("orders").update({payment_status:"paid"}).eq("id",order.id).eq("payment_status","unpaid").select("id").single();
+    if(paymentError||!data?.id){ordersMessage.textContent="Confirmation impossible : "+(paymentError?.message||"aucune ligne mise à jour.");paid.disabled=false;return;}
+    order.payment_status="paid";ordersMessage.textContent="Réception Airtel Money confirmée pour "+order.order_number+".";renderOrders();
+   });
+   actions.append(paid);
+  }
   const select=document.createElement("select");select.setAttribute("aria-label","Statut de la commande "+order.order_number);
   for(const key of allowedStatuses){const option=el("option",labels[key]);option.value=key;option.selected=key===order.status;select.append(option);}
   select.addEventListener("change",async()=>{
