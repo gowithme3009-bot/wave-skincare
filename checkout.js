@@ -5,6 +5,34 @@ const supabase = createClient(window.WAVE_SUPABASE_URL, window.WAVE_SUPABASE_PUB
 const form = document.getElementById("orderForm");
 const list = document.getElementById("orderItems");
 const submitButton = form?.querySelector('button[type="submit"]');
+const paymentDetails = document.getElementById("airtelPaymentDetails");
+const paymentReferenceInput = document.getElementById("paymentReference");
+const paymentMethodHint = document.getElementById("paymentMethodHint");
+const paymentRadios = [...(form?.querySelectorAll('input[name="payment_method"]') || [])];
+
+function selectedPaymentMethod() {
+  return paymentRadios.find(radio => radio.checked)?.value || "cash_on_delivery";
+}
+
+function updatePaymentFields() {
+  const airtel = selectedPaymentMethod() === "airtel_money";
+  if (paymentDetails) paymentDetails.hidden = !airtel;
+  if (paymentReferenceInput) {
+    paymentReferenceInput.disabled = !airtel;
+    paymentReferenceInput.required = airtel;
+  }
+  if (paymentMethodHint) {
+    paymentMethodHint.textContent = airtel
+      ? "Votre commande sera enregistrée en attente de vérification du transfert. Elle ne sera pas marquée comme payée automatiquement."
+      : "Vous réglerez votre commande au moment de la réception, après confirmation de notre équipe.";
+  }
+  if (submitButton && !submitButton.disabled) {
+    submitButton.textContent = airtel
+      ? "Confirmer — Airtel Money (paiement à vérifier)"
+      : "Confirmer ma commande — paiement à la livraison";
+  }
+}
+paymentRadios.forEach(radio => radio.addEventListener("change", updatePaymentFields));
 
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -133,7 +161,7 @@ function renderSummary() {
   if (total) total.textContent = window.WaveStore.money(window.WaveStore.total());
 }
 
-function showReceipt(orderNumber, serverTotal, orderedLines) {
+function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod) {
   form.replaceChildren();
   const receipt = node("div", undefined, "order-receipt");
   receipt.setAttribute("role", "status");
@@ -144,11 +172,17 @@ function showReceipt(orderNumber, serverTotal, orderedLines) {
   const reference = node("p", orderNumber, "receipt-reference");
   const total = node("p", undefined, "receipt-total");
   total.append(document.createTextNode("Montant enregistré : "), node("strong", window.WaveStore.money(Number(serverTotal))));
-  const payment = node("p", "Mode de paiement : paiement à la livraison.");
+  const isAirtel = paymentMethod === "airtel_money";
+  const payment = node("p", isAirtel
+    ? "Mode de paiement : Airtel Money — +261 33 82 03 366."
+    : "Mode de paiement : paiement à la livraison.");
+  const paymentState = node("p", isAirtel
+    ? "Statut : transfert en attente de vérification. Notre équipe vérifiera la réception avant de confirmer le paiement."
+    : "Statut : paiement à la livraison, en attente de confirmation de la commande.");
   const message = node("p", "Votre commande est en attente de confirmation. Notre équipe vous contactera au numéro indiqué pour confirmer la disponibilité et la livraison.");
   const back = node("a", "Retour à la boutique", "btn btn-gold full");
   back.href = "boutique.html";
-  receipt.append(eyebrow, heading, intro, reference, total, payment, message, back);
+  receipt.append(eyebrow, heading, intro, reference, total, payment, paymentState, message, back);
   form.append(receipt);
 
   if (list) {
@@ -165,6 +199,7 @@ function showReceipt(orderNumber, serverTotal, orderedLines) {
 }
 
 renderSummary();
+updatePaymentFields();
 refreshCheckoutAccountHint();
 
 form?.addEventListener("submit", async event => {
@@ -198,6 +233,15 @@ form?.addEventListener("submit", async event => {
     note: String(data.get("note") || "").trim()
   };
   const items = orderedLines.map(line => ({ name: line.name, quantity: line.quantity }));
+  const paymentMethod = selectedPaymentMethod();
+  const paymentReference = String(data.get("payment_reference") || "").trim();
+
+  if (paymentMethod === "airtel_money" &&
+      (!/^[A-Za-z0-9._/-]{3,80}$/.test(paymentReference))) {
+    window.WaveStore.toast("Saisissez la référence de transaction Airtel Money (3 à 80 caractères).");
+    paymentReferenceInput?.focus();
+    return;
+  }
 
   if (!customer.name || !customer.phone || !customer.address || !customer.city) {
     window.WaveStore.toast("Veuillez remplir les informations de livraison obligatoires.");
@@ -245,7 +289,7 @@ form?.addEventListener("submit", async event => {
 
     // Le serveur valide le stock et recalcule le montant avant d'enregistrer.
     window.WaveStore.clear();
-    showReceipt(result.order_number, result.total, orderedLines);
+    showReceipt(result.order_number, result.total, orderedLines, paymentMethod);
     if (addressSaveFailed) {
       window.WaveStore.toast("Commande enregistrée, mais adresse non sauvegardée.");
     } else if (saveAddressCheckbox?.checked) {
@@ -256,7 +300,7 @@ form?.addEventListener("submit", async event => {
     window.WaveStore.toast(error?.message || "Impossible d'enregistrer la commande. Réessayez.");
     if (submitButton) {
       submitButton.disabled = false;
-      submitButton.textContent = "Confirmer ma commande — paiement à la livraison";
+      submitButton.textContent = paymentMethod === "airtel_money" ? "Confirmer — Airtel Money (paiement à vérifier)" : "Confirmer ma commande — paiement à la livraison";
     }
   }
 });
