@@ -169,12 +169,12 @@ async function loadProducts(){
 }
 
 function updateOrderStats(){
- const total=ordersCache.length;
- setStat("statTotal",String(total));
- setStat("statPending",String(ordersCache.filter(o=>o.status==="pending").length));
- setStat("statActive",String(ordersCache.filter(o=>["confirmed","preparing","shipped"].includes(o.status)).length));
- setStat("statDelivered",String(ordersCache.filter(o=>o.status==="delivered").length));
- setStat("statRevenue",money(ordersCache.reduce((sum,o)=>sum+Number(o.total||0),0)));
+ const realOrders=ordersCache.filter(order=>!order.is_test);
+ setStat("statTotal",String(realOrders.length));
+ setStat("statPending",String(realOrders.filter(o=>o.status==="pending").length));
+ setStat("statActive",String(realOrders.filter(o=>["confirmed","preparing","shipped"].includes(o.status)).length));
+ setStat("statDelivered",String(realOrders.filter(o=>o.status==="delivered").length));
+ setStat("statRevenue",money(realOrders.reduce((sum,o)=>sum+Number(o.total||0),0)));
 }
 function waNumber(phone){
  let digits=String(phone||"").replace(/[^0-9]/g,"");
