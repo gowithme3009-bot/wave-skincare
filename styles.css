@@ -139,3 +139,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
 }
+
+
+/* Adresse de livraison enregistrable dans le compte client */
+.form-card label.save-address-option{display:block;margin:4px 0 20px;padding:14px 15px;border:1px solid var(--line);border-radius:12px;background:#fff9ef}
+.save-address-control{display:flex;flex-direction:row;align-items:center;gap:10px;font-size:12px;line-height:1.5}
+.form-card .save-address-control input[type="checkbox"]{width:18px;height:18px;min-height:18px;flex:0 0 18px;margin:0;accent-color:var(--gold);cursor:pointer}
+.save-address-option small{display:block;margin:7px 0 0 28px;color:var(--muted);font-size:10px;line-height:1.5;font-weight:400}
+.save-address-control input:disabled{cursor:not-allowed;opacity:.55}
