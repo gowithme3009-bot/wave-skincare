@@ -15,11 +15,85 @@ function node(tag, text, className) {
 
 const accountHint = document.getElementById("checkoutAccountHint");
 
+const saveAddressCheckbox = document.getElementById("saveAddress");
+const saveAddressHint = document.getElementById("saveAddressHint");
+
+function configureAddressSaving(session) {
+  if (!saveAddressCheckbox) return;
+  const signedIn = Boolean(session?.user?.id);
+  saveAddressCheckbox.disabled = !signedIn;
+  if (saveAddressHint) {
+    saveAddressHint.textContent = signedIn
+      ? "Votre adresse sera enregistrée de façon privée dans votre compte."
+      : "Connectez-vous pour enregistrer votre adresse. Vous pouvez toujours commander sans compte.";
+  }
+}
+
 function setAccountHint(session) {
-  if (!accountHint) return;
-  accountHint.textContent = session?.user?.id
-    ? "Vous êtes connecté : votre commande sera automatiquement associée à votre compte et visible dans « Mes commandes »."
-    : "Vous pouvez commander sans compte. Si vous êtes connecté, votre commande sera automatiquement associée à votre compte.";
+  if (accountHint) {
+    accountHint.textContent = session?.user?.id
+      ? "Vous êtes connecté : votre commande sera automatiquement associée à votre compte et visible dans « Mes commandes »."
+      : "Vous pouvez commander sans compte. Si vous êtes connecté, votre commande sera automatiquement associée à votre compte.";
+  }
+  configureAddressSaving(session);
+}
+
+async function loadSavedAddress(session) {
+  if (!session?.user?.id || !form) return;
+  const { data, error } = await supabase
+    .from("addresses")
+    .select("full_name,phone,address,city")
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Wave Skincare saved address:", error.message);
+    if (saveAddressHint) saveAddressHint.textContent = "Votre adresse enregistrée n'a pas pu être chargée.";
+    return;
+  }
+  if (!data) return;
+
+  const fields = {
+    name: data.full_name,
+    phone: data.phone,
+    address: data.address,
+    city: data.city
+  };
+  for (const [name, value] of Object.entries(fields)) {
+    const field = form.elements.namedItem(name);
+    if (field && !field.value && value) field.value = value;
+  }
+  if (saveAddressHint) saveAddressHint.textContent = "Votre dernière adresse enregistrée a été retrouvée. Vous pouvez la modifier.";
+}
+
+async function saveCustomerAddress(userId, customer) {
+  const { data: existing, error: lookupError } = await supabase
+    .from("addresses")
+    .select("id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+
+  const addressData = {
+    user_id: userId,
+    full_name: customer.name,
+    phone: customer.phone,
+    address: customer.address,
+    city: customer.city,
+    country: "Madagascar"
+  };
+
+  if (existing?.id) {
+    const { error } = await supabase.from("addresses").update(addressData).eq("id", existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("addresses").insert(addressData);
+    if (error) throw error;
+  }
 }
 
 async function refreshCheckoutAccountHint() {
@@ -29,10 +103,12 @@ async function refreshCheckoutAccountHint() {
     return;
   }
   setAccountHint(data.session);
+  if (data.session?.user?.id) await loadSavedAddress(data.session);
 }
 
 supabase.auth.onAuthStateChange((_event, session) => {
   setAccountHint(session);
+  if (session?.user?.id) loadSavedAddress(session);
 });
 
 function renderSummary() {
@@ -155,9 +231,26 @@ form?.addEventListener("submit", async event => {
       throw new Error("La commande n'a pas pu être enregistrée correctement.");
     }
 
+    // La commande est déjà enregistrée. La sauvegarde d'adresse est facultative
+    // et ne doit jamais provoquer une seconde soumission de commande.
+    let addressSaveFailed = false;
+    if (saveAddressCheckbox?.checked && sessionData.session?.user?.id) {
+      try {
+        await saveCustomerAddress(sessionData.session.user.id, customer);
+      } catch (addressError) {
+        addressSaveFailed = true;
+        console.warn("Wave Skincare address save:", addressError);
+      }
+    }
+
     // Le serveur valide le stock et recalcule le montant avant d'enregistrer.
     window.WaveStore.clear();
     showReceipt(result.order_number, result.total, orderedLines);
+    if (addressSaveFailed) {
+      window.WaveStore.toast("Commande enregistrée, mais adresse non sauvegardée.");
+    } else if (saveAddressCheckbox?.checked) {
+      window.WaveStore.toast("Adresse enregistrée pour vos prochaines commandes.");
+    }
   } catch (error) {
     console.error("Wave Skincare order error:", error);
     window.WaveStore.toast(error?.message || "Impossible d'enregistrer la commande. Réessayez.");
