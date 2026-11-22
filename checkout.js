@@ -7,9 +7,6 @@ const list = document.getElementById("orderItems");
 const submitButton = form?.querySelector('button[type="submit"]');
 const paymentDetails = document.getElementById("airtelPaymentDetails");
 const paymentReferenceInput = document.getElementById("paymentReference");
-const airtelTestMode = document.getElementById("airtelTestMode");
-const airtelReferenceGroup = document.getElementById("airtelReferenceGroup");
-const airtelTestHint = document.getElementById("airtelTestHint");
 const paymentMethodHint = document.getElementById("paymentMethodHint");
 const paymentRadios = [...(form?.querySelectorAll('input[name="payment_method"]') || [])];
 
@@ -20,30 +17,22 @@ function selectedPaymentMethod() {
 function updatePaymentFields() {
   const airtel = selectedPaymentMethod() === "airtel_money";
   if (paymentDetails) paymentDetails.hidden = !airtel;
-  const testMode = airtel && Boolean(airtelTestMode?.checked);
   if (paymentReferenceInput) {
-    paymentReferenceInput.disabled = !airtel || testMode;
-    paymentReferenceInput.required = airtel && !testMode;
-    if (testMode) paymentReferenceInput.value = "";
+    paymentReferenceInput.disabled = !airtel;
+    paymentReferenceInput.required = airtel;
   }
-  if (airtelReferenceGroup) airtelReferenceGroup.hidden = testMode;
-  if (airtelTestHint) airtelTestHint.hidden = !testMode;
   if (paymentMethodHint) {
     paymentMethodHint.textContent = airtel
-      ? (testMode
-        ? "Mode TEST : la commande sera enregistrée sans transfert et sans paiement réel."
-        : "Votre commande sera enregistrée en attente de vérification du transfert. Elle ne sera pas marquée comme payée automatiquement.")
+      ? "Votre commande sera enregistrée en attente de vérification du transfert. Elle ne sera pas marquée comme payée automatiquement."
       : "Vous réglerez votre commande au moment de la réception, après confirmation de notre équipe.";
   }
   if (submitButton && !submitButton.disabled) {
     submitButton.textContent = airtel
-      ? (testMode ? "Enregistrer la commande TEST — sans paiement" : "Confirmer — Airtel Money (paiement à vérifier)")
+      ? "Confirmer — Airtel Money (paiement à vérifier)"
       : "Confirmer ma commande — paiement à la livraison";
   }
 }
 paymentRadios.forEach(radio => radio.addEventListener("change", updatePaymentFields));
-airtelTestMode?.addEventListener("change", updatePaymentFields);
-if (airtelTestMode) airtelTestMode.disabled = false;
 
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -172,7 +161,7 @@ function renderSummary() {
   if (total) total.textContent = window.WaveStore.money(window.WaveStore.total());
 }
 
-function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod, paymentReference, isTest = false) {
+function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod, paymentReference) {
   form.replaceChildren();
   const receipt = node("div", undefined, "order-receipt");
   receipt.setAttribute("role", "status");
@@ -185,14 +174,12 @@ function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod, paym
   total.append(document.createTextNode("Montant enregistré : "), node("strong", window.WaveStore.money(Number(serverTotal))));
   const isAirtel = paymentMethod === "airtel_money";
   const payment = node("p", isAirtel
-    ? (isTest ? "Mode de paiement : Airtel Money — TEST sans transfert." : "Mode de paiement : Airtel Money — +261 33 82 03 366.")
+    ? "Mode de paiement : Airtel Money — +261 33 82 03 366."
     : "Mode de paiement : paiement à la livraison.");
   const paymentState = node("p", isAirtel
-    ? (isTest
-      ? "MODE TEST : aucun transfert Airtel Money effectué. Aucun paiement reçu ni validé. Cette commande sert uniquement à vérifier le site."
-      : "Statut : transfert en attente de vérification. Notre équipe vérifiera la réception avant de confirmer le paiement.")
+    ? "Statut : transfert en attente de vérification. Notre équipe vérifiera la réception avant de confirmer le paiement."
     : "Statut : paiement à la livraison, en attente de confirmation de la commande.");
-  const paymentReferenceLine = isAirtel && !isTest
+  const paymentReferenceLine = isAirtel
     ? node("p", "Référence de transfert enregistrée : " + paymentReference)
     : null;
   const message = node("p", "Votre commande est en attente de confirmation. Notre équipe vous contactera au numéro indiqué pour confirmer la disponibilité et la livraison.");
@@ -253,9 +240,8 @@ form?.addEventListener("submit", async event => {
   const items = orderedLines.map(line => ({ name: line.name, quantity: line.quantity }));
   const paymentMethod = selectedPaymentMethod();
   const paymentReference = String(data.get("payment_reference") || "").trim();
-  const isTest = paymentMethod === "airtel_money" && Boolean(airtelTestMode?.checked);
 
-  if (paymentMethod === "airtel_money" && !isTest &&
+  if (paymentMethod === "airtel_money" &&
       (!/^[A-Za-z0-9._/-]{3,80}$/.test(paymentReference))) {
     window.WaveStore.toast("Saisissez la référence de transaction Airtel Money (3 à 80 caractères).");
     paymentReferenceInput?.focus();
@@ -289,8 +275,8 @@ form?.addEventListener("submit", async event => {
       p_customer: customer,
       p_items: items,
       p_payment_method: paymentMethod,
-      p_payment_reference: paymentMethod === "airtel_money" && !isTest ? paymentReference : null,
-      p_is_test: isTest
+      p_payment_reference: paymentMethod === "airtel_money" ? paymentReference : null,
+      p_is_test: false
     });
     if (error) throw error;
     if (!result?.success || !result?.order_number || !Number.isFinite(Number(result.total))) {
@@ -311,7 +297,7 @@ form?.addEventListener("submit", async event => {
 
     // Le serveur valide le stock et recalcule le montant avant d'enregistrer.
     window.WaveStore.clear();
-    showReceipt(result.order_number, result.total, orderedLines, paymentMethod, paymentReference, isTest);
+    showReceipt(result.order_number, result.total, orderedLines, paymentMethod, paymentReference);
     if (addressSaveFailed) {
       window.WaveStore.toast("Commande enregistrée, mais adresse non sauvegardée.");
     } else if (saveAddressCheckbox?.checked) {
@@ -323,7 +309,7 @@ form?.addEventListener("submit", async event => {
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.textContent = paymentMethod === "airtel_money"
-        ? (isTest ? "Enregistrer la commande TEST — sans paiement" : "Confirmer — Airtel Money (paiement à vérifier)")
+        ? "Confirmer — Airtel Money (paiement à vérifier)"
         : "Confirmer ma commande — paiement à la livraison";
     }
   }
