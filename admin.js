@@ -355,14 +355,20 @@ function startOrderPolling(){
 }
 
 async function verify(){
- const {data:{session},error}=await supabase.auth.getSession();
- if(error){status.textContent="Erreur : "+error.message;adminReady=false;return;}
- if(!session){status.textContent="Accès refusé : connectez-vous avec le compte administrateur.";adminReady=false;return;}
- const {data:profile,error:profileError}=await supabase.from("profiles").select("role").eq("id",session.user.id).maybeSingle();
- if(profileError){status.textContent="Impossible de vérifier le rôle : "+profileError.message;adminReady=false;return;}
- if(profile?.role!=="admin"){status.textContent="Accès refusé. Ce compte n’a pas le rôle admin.";adminReady=false;return;}
- currentAdminId=session.user.id;
- status.textContent="Accès autorisé. Compte administrateur vérifié.";logout.hidden=false;adminReady=true;
+ // Valider l'identité auprès de Supabase Auth, puis vérifier le rôle côté serveur.
+ // La fonction is_admin() applique auth.uid() et évite une lecture directe de profiles
+ // qui peut être bloquée par les règles RLS.
+ adminReady=false;
+ const {data:{user},error:authError}=await supabase.auth.getUser();
+ if(authError){status.textContent="Erreur de vérification de session : "+authError.message;return;}
+ if(!user){status.textContent="Accès refusé : connectez-vous avec le compte administrateur.";logout.hidden=true;return;}
+ const {data:isAdmin,error:roleError}=await supabase.rpc("is_admin");
+ if(roleError){status.textContent="Vérification administrateur impossible : "+roleError.message;logout.hidden=false;return;}
+ if(isAdmin!==true){status.textContent="Accès refusé. Le compte connecté ne possède pas le rôle administrateur.";logout.hidden=false;return;}
+ currentAdminId=user.id;
+ status.textContent="Accès autorisé. Compte administrateur vérifié.";
+ logout.hidden=false;
+ adminReady=true;
  await Promise.all([loadProducts(),loadOrders()]);
  startOrderPolling();
 }
