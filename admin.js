@@ -208,8 +208,14 @@ function renderOrders(){
   card.append(items);
   card.append(el("p","Total à encaisser : "+money(order.total)));
   const isAirtel = order.payment_method === "airtel_money";
+  const isTest = Boolean(order.is_test);
   card.append(el("p", "Paiement : " + (isAirtel ? "Airtel Money — +261 33 82 03 366" : "Paiement à la livraison") + " · " + (paymentStatusLabels[order.payment_status] || order.payment_status)));
-  if (isAirtel && order.payment_reference) {
+  if (isTest) {
+   const testWarning=el("p","MODE TEST — aucun transfert effectué, aucun paiement reçu. Ne pas marquer cette commande comme payée.");
+   testWarning.style.fontWeight="700";
+   card.append(testWarning);
+  }
+  if (isAirtel && !isTest && order.payment_reference) {
    const referenceLine=el("p","Référence Airtel Money : "+order.payment_reference);
    referenceLine.style.fontWeight="700";
    card.append(referenceLine);
@@ -229,8 +235,11 @@ function renderOrders(){
    const paymentSelect=document.createElement("select");
    paymentSelect.setAttribute("aria-label","Vérification du paiement "+order.order_number);
    for(const key of ["pending_verification","paid","unpaid","refunded"]){
-    const option=el("option",paymentStatusLabels[key]);option.value=key;option.selected=key===order.payment_status;paymentSelect.append(option);
+    const option=el("option",paymentStatusLabels[key]);option.value=key;option.selected=key===order.payment_status;
+    if(isTest && key==="paid")option.disabled=true;
+    paymentSelect.append(option);
    }
+   if(isTest)paymentSelect.disabled=true;
    paymentSelect.addEventListener("change",async()=>{
     const previous=order.payment_status;
     paymentSelect.disabled=true;
@@ -244,7 +253,9 @@ function renderOrders(){
   const phone=waNumber(customer.phone);
   if(phone){
    const message = isAirtel
-    ? "Bonjour " + (customer.name || "") + ", nous vous contactons au sujet de votre commande " + order.order_number + " chez Wave Skincare. Votre transfert Airtel Money (référence " + (order.payment_reference || "non renseignée") + ") est en cours de vérification. Nous vous confirmerons dès que la réception sera contrôlée."
+    ? (isTest
+      ? "Bonjour " + (customer.name || "") + ", votre commande " + order.order_number + " chez Wave Skincare a été créée en MODE TEST. Aucun transfert Airtel Money n'a été effectué et aucun paiement n'est dû au titre de ce test."
+      : "Bonjour " + (customer.name || "") + ", nous vous contactons au sujet de votre commande " + order.order_number + " chez Wave Skincare. Votre transfert Airtel Money (référence " + (order.payment_reference || "non renseignée") + ") est en cours de vérification. Nous vous confirmerons dès que la réception sera contrôlée.")
     : "Bonjour " + (customer.name || "") + ", nous vous contactons au sujet de votre commande " + order.order_number + " chez Wave Skincare. Montant à régler à la livraison : " + money(order.total) + ". Merci de confirmer votre disponibilité.";
    const link=el("a","Préparer WhatsApp","btn btn-gold");
    link.href="https://wa.me/"+phone+"?text="+encodeURIComponent(message);link.target="_blank";link.rel="noopener";
@@ -268,7 +279,7 @@ async function loadOrders({silent=false}={}){
   // Charger les commandes et leurs lignes séparément pour éviter qu'une
   // relation imbriquée PostgREST bloque toute la liste.
   const {data,error}=await supabase.from("orders")
-   .select("id,order_number,status,payment_method,payment_status,payment_reference,total,delivery_address,created_at")
+   .select("id,order_number,status,payment_method,payment_status,payment_reference,is_test,total,delivery_address,created_at")
    .order("created_at",{ascending:false}).limit(50);
   if(error)throw error;
   const fresh=data||[];
