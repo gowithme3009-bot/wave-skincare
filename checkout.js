@@ -161,7 +161,7 @@ function renderSummary() {
   if (total) total.textContent = window.WaveStore.money(window.WaveStore.total());
 }
 
-function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod) {
+function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod, paymentReference) {
   form.replaceChildren();
   const receipt = node("div", undefined, "order-receipt");
   receipt.setAttribute("role", "status");
@@ -179,10 +179,15 @@ function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod) {
   const paymentState = node("p", isAirtel
     ? "Statut : transfert en attente de vérification. Notre équipe vérifiera la réception avant de confirmer le paiement."
     : "Statut : paiement à la livraison, en attente de confirmation de la commande.");
+  const paymentReferenceLine = isAirtel
+    ? node("p", "Référence de transfert enregistrée : " + paymentReference)
+    : null;
   const message = node("p", "Votre commande est en attente de confirmation. Notre équipe vous contactera au numéro indiqué pour confirmer la disponibilité et la livraison.");
   const back = node("a", "Retour à la boutique", "btn btn-gold full");
   back.href = "boutique.html";
-  receipt.append(eyebrow, heading, intro, reference, total, payment, paymentState, message, back);
+  receipt.append(eyebrow, heading, intro, reference, total, payment, paymentState);
+  if (paymentReferenceLine) receipt.append(paymentReferenceLine);
+  receipt.append(message, back);
   form.append(receipt);
 
   if (list) {
@@ -291,7 +296,7 @@ form?.addEventListener("submit", async event => {
 
     // Le serveur valide le stock et recalcule le montant avant d'enregistrer.
     window.WaveStore.clear();
-    showReceipt(result.order_number, result.total, orderedLines, paymentMethod);
+    showReceipt(result.order_number, result.total, orderedLines, paymentMethod, paymentReference);
     if (addressSaveFailed) {
       window.WaveStore.toast("Commande enregistrée, mais adresse non sauvegardée.");
     } else if (saveAddressCheckbox?.checked) {
