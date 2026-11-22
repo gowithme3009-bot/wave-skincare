@@ -30,12 +30,14 @@ function updatePaymentFields() {
   if (airtelTestHint) airtelTestHint.hidden = !testMode;
   if (paymentMethodHint) {
     paymentMethodHint.textContent = airtel
-      ? "Votre commande sera enregistrée en attente de vérification du transfert. Elle ne sera pas marquée comme payée automatiquement."
+      ? (testMode
+        ? "Mode TEST : la commande sera enregistrée sans transfert et sans paiement réel."
+        : "Votre commande sera enregistrée en attente de vérification du transfert. Elle ne sera pas marquée comme payée automatiquement.")
       : "Vous réglerez votre commande au moment de la réception, après confirmation de notre équipe.";
   }
   if (submitButton && !submitButton.disabled) {
     submitButton.textContent = airtel
-      ? "Confirmer — Airtel Money (paiement à vérifier)"
+      ? (testMode ? "Enregistrer la commande TEST — sans paiement" : "Confirmer — Airtel Money (paiement à vérifier)")
       : "Confirmer ma commande — paiement à la livraison";
   }
 }
@@ -183,7 +185,7 @@ function showReceipt(orderNumber, serverTotal, orderedLines, paymentMethod, paym
   total.append(document.createTextNode("Montant enregistré : "), node("strong", window.WaveStore.money(Number(serverTotal))));
   const isAirtel = paymentMethod === "airtel_money";
   const payment = node("p", isAirtel
-    ? "Mode de paiement : Airtel Money — +261 33 82 03 366."
+    ? (isTest ? "Mode de paiement : Airtel Money — TEST sans transfert." : "Mode de paiement : Airtel Money — +261 33 82 03 366.")
     : "Mode de paiement : paiement à la livraison.");
   const paymentState = node("p", isAirtel
     ? (isTest
@@ -320,7 +322,9 @@ form?.addEventListener("submit", async event => {
     window.WaveStore.toast(error?.message || "Impossible d'enregistrer la commande. Réessayez.");
     if (submitButton) {
       submitButton.disabled = false;
-      submitButton.textContent = paymentMethod === "airtel_money" ? "Confirmer — Airtel Money (paiement à vérifier)" : "Confirmer ma commande — paiement à la livraison";
+      submitButton.textContent = paymentMethod === "airtel_money"
+        ? (isTest ? "Enregistrer la commande TEST — sans paiement" : "Confirmer — Airtel Money (paiement à vérifier)")
+        : "Confirmer ma commande — paiement à la livraison";
     }
   }
 });
