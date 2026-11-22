@@ -8,6 +8,7 @@ const refreshOrders = $("refreshOrders"), productForm = $("productForm");
 const money = value => new Intl.NumberFormat("fr-FR").format(Number(value || 0)) + " Ar";
 const labels = {pending:"À confirmer",confirmed:"Confirmée",preparing:"En préparation",shipped:"En livraison",delivered:"Livrée",cancelled:"Annulée"};
 const allowedStatuses = Object.keys(labels);
+const paymentStatusLabels = {unpaid:"Non payé",pending_verification:"À vérifier",paid:"Payé — vérifié",refunded:"Remboursé"};
 let ordersCache = [];
 let knownOrderIds = null;
 let adminReady = false;
@@ -187,7 +188,7 @@ function renderOrders(){
  const search=($("orderSearch")?.value||"").trim().toLocaleLowerCase("fr");
  const visible=ordersCache.filter(order=>{
   const customer=order.delivery_address||{};
-  const haystack=[order.order_number,customer.name,customer.phone].join(" ").toLocaleLowerCase("fr");
+  const haystack=[order.order_number,customer.name,customer.phone,order.payment_reference].join(" ").toLocaleLowerCase("fr");
   return (filter==="all"||order.status===filter)&&(!search||haystack.includes(search));
  });
  if(!visible.length){ordersList.append(el("p",ordersCache.length?"Aucune commande ne correspond à ce filtre.":"Aucune commande pour le moment."));return;}
@@ -206,7 +207,13 @@ function renderOrders(){
   for(const item of(order.order_items||[]))items.append(el("li",item.quantity+" × "+item.product_name+" — "+money(item.unit_price)+" / unité"));
   card.append(items);
   card.append(el("p","Total à encaisser : "+money(order.total)));
-  card.append(el("p","Paiement : à la livraison — "+(order.payment_status==="paid"?"payé":"non payé")));
+  const isAirtel = order.payment_method === "airtel_money";
+  card.append(el("p", "Paiement : " + (isAirtel ? "Airtel Money — +261 33 82 03 366" : "Paiement à la livraison") + " · " + (paymentStatusLabels[order.payment_status] || order.payment_status)));
+  if (isAirtel && order.payment_reference) {
+   const referenceLine=el("p","Référence Airtel Money : "+order.payment_reference);
+   referenceLine.style.fontWeight="700";
+   card.append(referenceLine);
+  }
   const actions=el("div",undefined,"order-actions");
   const select=document.createElement("select");select.setAttribute("aria-label","Statut de la commande "+order.order_number);
   for(const key of allowedStatuses){const option=el("option",labels[key]);option.value=key;option.selected=key===order.status;select.append(option);}
@@ -218,6 +225,22 @@ function renderOrders(){
    select.disabled=false;
   });
   actions.append(select);
+  if (isAirtel) {
+   const paymentSelect=document.createElement("select");
+   paymentSelect.setAttribute("aria-label","Vérification du paiement "+order.order_number);
+   for(const key of ["pending_verification","paid","unpaid","refunded"]){
+    const option=el("option",paymentStatusLabels[key]);option.value=key;option.selected=key===order.payment_status;paymentSelect.append(option);
+   }
+   paymentSelect.addEventListener("change",async()=>{
+    const previous=order.payment_status;
+    paymentSelect.disabled=true;
+    const {error:paymentError}=await supabase.from("orders").update({payment_status:paymentSelect.value}).eq("id",order.id);
+    if(paymentError){ordersMessage.textContent="Mise à jour du paiement impossible : "+paymentError.message;paymentSelect.value=previous;}
+    else{order.payment_status=paymentSelect.value;ordersMessage.textContent=paymentSelect.value==="paid"?"Paiement marqué comme vérifié et reçu pour "+order.order_number+".":"Statut du paiement mis à jour pour "+order.order_number+".";renderOrders();}
+    paymentSelect.disabled=false;
+   });
+   actions.append(paymentSelect);
+  }
   const phone=waNumber(customer.phone);
   if(phone){
    const message="Bonjour "+(customer.name||"")+" , nous vous contactons au sujet de votre commande "+order.order_number+" chez Wave Skincare. Montant à régler à la livraison : "+money(order.total)+". Merci de confirmer votre disponibilité.";
@@ -243,7 +266,7 @@ async function loadOrders({silent=false}={}){
   // Charger les commandes et leurs lignes séparément pour éviter qu'une
   // relation imbriquée PostgREST bloque toute la liste.
   const {data,error}=await supabase.from("orders")
-   .select("id,order_number,status,payment_method,payment_status,total,delivery_address,created_at")
+   .select("id,order_number,status,payment_method,payment_status,payment_reference,total,delivery_address,created_at")
    .order("created_at",{ascending:false}).limit(50);
   if(error)throw error;
   const fresh=data||[];
