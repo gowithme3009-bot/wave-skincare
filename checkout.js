@@ -266,9 +266,11 @@ form?.addEventListener("submit", async event => {
       }
     }
 
-    const { data: result, error } = await supabase.rpc("create_guest_cod_order", {
+    const { data: result, error } = await supabase.rpc("create_guest_order_with_payment", {
       p_customer: customer,
-      p_items: items
+      p_items: items,
+      p_payment_method: paymentMethod,
+      p_payment_reference: paymentMethod === "airtel_money" ? paymentReference : null
     });
     if (error) throw error;
     if (!result?.success || !result?.order_number || !Number.isFinite(Number(result.total))) {
