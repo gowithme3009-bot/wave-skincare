@@ -12,6 +12,7 @@ const paymentStatusLabels = {unpaid:"Non payé",pending_verification:"À vérifi
 let ordersCache = [];
 let knownOrderIds = null;
 let adminReady = false;
+let currentAdminId = null;
 let pollingTimer = null;
 let loadingOrders = false;
 let loadingProducts = false;
@@ -220,6 +221,23 @@ function renderOrders(){
    referenceLine.style.fontWeight="700";
    card.append(referenceLine);
   }
+  if (isAirtel && !isTest) {
+   const history=el("div",undefined,"payment-audit-history");
+   history.style.cssText="margin-top:12px;padding:12px;border:1px solid #eadfce;border-radius:10px;background:#fff;";
+   history.append(el("strong","Historique des vérifications Airtel Money"));
+   const entries=order.payment_audit||[];
+   if(!entries.length){
+    history.append(el("p","Aucune modification de paiement enregistrée pour le moment. L’historique commencera lors de la première mise à jour."));
+   }else{
+    for(const entry of entries){
+     const line=el("p",undefined);
+     const actor=entry.actor_id?(entry.actor_id===currentAdminId?"Vous (administrateur)":"Administrateur · "+entry.actor_id.slice(0,8)):"Action système";
+     line.textContent=new Date(entry.created_at).toLocaleString("fr-FR")+" — "+(paymentStatusLabels[entry.old_status]||entry.old_status)+" → "+(paymentStatusLabels[entry.new_status]||entry.new_status)+" · "+actor+(entry.new_status==="paid"?" · Paiement vérifié":"")+(entry.payment_reference?" · Réf. "+entry.payment_reference:"");
+     history.append(line);
+    }
+   }
+   card.append(history);
+  }
   const actions=el("div",undefined,"order-actions");
   const select=document.createElement("select");select.setAttribute("aria-label","Statut de la commande "+order.order_number);
   for(const key of allowedStatuses){const option=el("option",labels[key]);option.value=key;option.selected=key===order.status;select.append(option);}
@@ -295,8 +313,18 @@ async function loadOrders({silent=false}={}){
     grouped.get(line.order_id).push(line);
    }
    for(const order of fresh)order.order_items=grouped.get(order.id)||[];
+   const {data:auditRows,error:auditError}=await supabase.from("payment_audit")
+    .select("id,order_id,actor_id,old_status,new_status,payment_reference,amount,verified_at,created_at")
+    .in("order_id",orderIds).order("created_at",{ascending:false});
+   if(auditError)throw auditError;
+   const auditGrouped=new Map();
+   for(const entry of(auditRows||[])){
+    if(!auditGrouped.has(entry.order_id))auditGrouped.set(entry.order_id,[]);
+    auditGrouped.get(entry.order_id).push(entry);
+   }
+   for(const order of fresh)order.payment_audit=auditGrouped.get(order.id)||[];
   }else{
-   for(const order of fresh)order.order_items=[];
+   for(const order of fresh){order.order_items=[];order.payment_audit=[];}
   }
   const freshIds=new Set(fresh.map(o=>o.id));
   const newOrders=knownOrderIds===null?[]:fresh.filter(o=>!knownOrderIds.has(o.id));
@@ -333,6 +361,7 @@ async function verify(){
  const {data:profile,error:profileError}=await supabase.from("profiles").select("role").eq("id",session.user.id).maybeSingle();
  if(profileError){status.textContent="Impossible de vérifier le rôle : "+profileError.message;adminReady=false;return;}
  if(profile?.role!=="admin"){status.textContent="Accès refusé. Ce compte n’a pas le rôle admin.";adminReady=false;return;}
+ currentAdminId=session.user.id;
  status.textContent="Accès autorisé. Compte administrateur vérifié.";logout.hidden=false;adminReady=true;
  await Promise.all([loadProducts(),loadOrders()]);
  startOrderPolling();
